@@ -12,7 +12,9 @@ import { homeConsumptionWatts } from './power.js';
 import type { MetricMap } from './contracts.js';
 import type { PowerMeterOptions } from './power-meter.js';
 
-export const PLUGIN_NAME = 'homebridge-huawei-fusionsolar-monitor';
+export const PLUGIN_NAME = '@buslowicz/homebridge-huawei-fusionsolar-monitor';
+// Freeze the original identity seed so changing npm registry/name preserves HomeKit pairing and automations.
+const ACCESSORY_IDENTITY_SEED = 'homebridge-huawei-fusionsolar-monitor';
 export const PLATFORM_NAME = 'HuaweiFusionSolarMonitor';
 type Accessory = PlatformAccessory<Record<string, unknown>>;
 type Kind = 'plant' | 'device' | 'alarms';
@@ -255,7 +257,7 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
   }
 
   private uuid(kind: Kind, id: string): string {
-    return this.api.hap.uuid.generate(`${PLUGIN_NAME}:${this.instanceId}:${kind}:${id}`);
+    return this.api.hap.uuid.generate(`${ACCESSORY_IDENTITY_SEED}:${this.instanceId}:${kind}:${id}`);
   }
 
   private ensureAccessory(kind: Kind, id: string, name: string, typeId: number | 'plant', model: string, serial: string, firmware: string): string {

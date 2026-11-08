@@ -7,7 +7,12 @@ import { promisify } from 'node:util';
 import { gunzipSync } from 'node:zlib';
 
 const execute = promisify(execFile);
-const packageName = 'homebridge-huawei-fusionsolar-monitor';
+export const packageName = '@buslowicz/homebridge-huawei-fusionsolar-monitor';
+
+export function archiveFilename(version) {
+  parts(version);
+  return `${packageName.slice(1).replace('/', '-')}-${version}.tgz`;
+}
 const stable = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const shaPattern = /^[a-f0-9]{40}$/u;
 const digest = (data) => createHash('sha256').update(data).digest('hex');
@@ -166,6 +171,7 @@ export function validateArchive(archive, version) {
     offset += 512 + Math.ceil(size / 512) * 512;
   }
   if (!manifest || manifest.name !== packageName || manifest.version !== version || !runtime) throw new Error('Release archive package identity, version or built runtime does not match release');
+  return manifest;
 }
 
 export async function publishRelease({ cwd = process.cwd(), env = process.env, request } = {}) {
@@ -178,7 +184,7 @@ export async function publishRelease({ cwd = process.cwd(), env = process.env, r
   if (typeof repository !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/u.test(repository)) throw new Error('Invalid GitHub repository');
   const manifest = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8'));
   if (manifest.name !== packageName) throw new Error('Source package identity does not match release');
-  const filename = `${packageName}-${version}.tgz`;
+  const filename = archiveFilename(version);
   const archivePath = join(cwd, 'release', filename);
   const archiveStat = await stat(archivePath);
   if (!archiveStat.isFile() || archiveStat.size < 3 || archiveStat.size > 50 * 1024 * 1024) throw new Error('Release archive is missing or has an unsafe size');

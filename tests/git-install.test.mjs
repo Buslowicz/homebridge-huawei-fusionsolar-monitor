@@ -9,7 +9,7 @@ import { test } from 'node:test';
 
 const execute = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const pluginName = 'homebridge-huawei-fusionsolar-monitor';
+const pluginName = '@buslowicz/homebridge-huawei-fusionsolar-monitor';
 
 function environment(directory) {
   const env = {
@@ -38,7 +38,8 @@ async function assertRuntime(installed, modulesDirectory) {
   assert.equal(Object.keys(manifest.dependencies ?? {}).length, 0, 'the monitor has no runtime dependency bundle');
   assert.equal((await readdir(installed)).includes('node_modules'), false, 'build-time Homebridge, TypeScript and lint dependencies must not be bundled');
   const packages = await readdir(modulesDirectory);
-  assert.deepEqual(packages.filter((name) => !name.startsWith('.')), [pluginName], 'preparation must not install Homebridge or any build dependency into the runtime directory');
+  assert.deepEqual(packages.filter((name) => !name.startsWith('.')), ['@buslowicz'], 'preparation must not install Homebridge or any build dependency into the runtime directory');
+  assert.deepEqual(await readdir(join(modulesDirectory, '@buslowicz')), ['homebridge-huawei-fusionsolar-monitor']);
   const { default: register } = await import(pathToFileURL(entry).href);
   assert.equal(typeof register, 'function');
   const { HomebridgeAPI } = await import(new URL('./api.js', import.meta.resolve('homebridge')).href);
@@ -64,7 +65,7 @@ test('a clean local Git dependency install builds the runtime and registers its 
   try {
     await mkdir(fixture);
     // Enumerate real build/package inputs explicitly so the source ZIP needs no enclosing .git repository.
-    const paths = ['package.json', 'package-lock.json', 'tsconfig.json', 'src', 'config.schema.json', 'README.md', 'LICENSE', 'docs'];
+    const paths = ['.npmrc', 'package.json', 'package-lock.json', 'tsconfig.json', 'src', 'config.schema.json', 'README.md', 'LICENSE', 'docs'];
     for (const path of paths) await cp(join(root, path), join(fixture, path), { recursive: true });
     await assert.rejects(access(join(fixture, 'dist/index.js')), { code: 'ENOENT' });
     await assert.rejects(access(join(fixture, 'node_modules')), { code: 'ENOENT' });

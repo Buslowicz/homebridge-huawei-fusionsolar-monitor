@@ -102,3 +102,38 @@ jobs:
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
         run: node .github/scripts/release.mjs publish
+
+  packages:
+    name: Publish and install GitHub Packages plugin
+    needs: [build, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout the verified source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js and scoped registry authentication
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          registry-url: https://npm.pkg.github.com
+          scope: '@buslowicz'
+          package-manager-cache: false
+
+      - name: Download the exact verified archive from this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          merge-multiple: true
+          path: release
+
+      - name: Publish verified archive and test a real global registry install
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: node .github/scripts/packages.mjs

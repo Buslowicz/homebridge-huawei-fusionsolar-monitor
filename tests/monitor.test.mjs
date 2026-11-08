@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -149,6 +150,10 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
     assert.equal(registeredName, PLATFORM_NAME);
     await h.platform.pollOnce();
     assert.equal(h.registered.length, 4);
+    const instance = createHash('sha256').update('https://demo.fusionsolar.huawei.com\0').digest('hex').slice(0, 16);
+    for (const accessory of h.registered) {
+      assert.equal(accessory.UUID, h.api.hap.uuid.generate(`homebridge-huawei-fusionsolar-monitor:${instance}:${accessory.context.kind}:${accessory.context.sourceId}`), 'original UUID seed survives scoped npm package migration');
+    }
     assert.deepEqual(new Set(h.registered.map((a) => a.context.kind)), new Set(['plant', 'device', 'alarms']));
     assert.ok(h.registered.every((a) => !JSON.stringify(a.context).includes('password')));
     h.platform.stop();

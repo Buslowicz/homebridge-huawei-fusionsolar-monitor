@@ -14,20 +14,58 @@ The full measurement set is intended for **Controller for HomeKit**; Eve is not 
 
 ## Automated releases
 
-Every push to `main` runs [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml): locked dependency installation, type checking, lint, build, all tests and dependency audit. A successful run publishes a [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) containing a ready-to-install `.tgz` and `SHA256SUMS`. Repository settings determine release visibility; the workflow does not change it.
+Every push to `main` runs [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml): locked dependency installation, type checking, lint, build, all tests and dependency audit. A successful build publishes a [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) containing a ready-to-install `.tgz` and `SHA256SUMS`. The same verified archive is then published as `@buslowicz/homebridge-huawei-fusionsolar-monitor` to GitHub Packages. The workflow does not change repository or package visibility. A new GitHub npm package starts private; its package settings control access independently of repository visibility.
 
 The first release uses the source `package.json` baseline (currently `0.1.1`). Subsequent releases increment the highest stable patch tag, for example `0.1.2`, `0.1.3`. Raising the source baseline starts a new minor/major series. Package versions are assigned only during the build; no version commits are added to `main`.
 
 Tags identify the exact verified commit. Rerunning the same commit reuses its version and checks published files rather than overwriting them. Publication follows complete asset upload; a failed attempt may leave a tag or draft that a retry can finish. Releases run sequentially, with up to 100 queued runs under GitHub Actions limits.
 
-Manual execution is available under **Actions → Build and release → Run workflow** on `main`. The built-in `GITHUB_TOKEN` is sufficient. Tests have read-only repository permission; a separate publication job operates on the completed package.
+Manual execution is available under **Actions → Build and release → Run workflow** on `main`. The built-in `GITHUB_TOKEN` is sufficient. Tests have read-only repository permission. Separate publication jobs use the completed archive: one can write releases, and one can write GitHub Packages. No personal token or additional repository secret is needed for publication. The package job runs after the release job and verifies an actual registry installation before succeeding.
 
-## Install a release package (recommended)
+## Install from GitHub Packages (recommended)
+
+The npm package is **`@buslowicz/homebridge-huawei-fusionsolar-monitor`**. Its registry is `https://npm.pkg.github.com`; it is not published to npmjs.org. GitHub requires authentication to install npm packages, including public ones. See [GitHub npm registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages).
+
+On the Homebridge machine, create a GitHub **personal access token (classic)** with `read:packages` and an account that can read this package. Authenticate in the same operating-system user and Node/npm environment used to install your Homebridge plugins:
+
+```sh
+npm login --scope=@buslowicz --auth-type=legacy --registry=https://npm.pkg.github.com
+```
+
+Enter your GitHub username and use the token as the password. Enter the token only in the terminal prompt; do not put it in commands, this repository, Homebridge configuration or issue reports. npm stores registry credentials in that operating-system user's npm configuration. A login under a different account, container or `sudo` context may not be visible to the installer.
+
+Install the latest published package:
+
+```sh
+npm install -g @buslowicz/homebridge-huawei-fusionsolar-monitor@latest
+```
+
+The scoped registry mapping created by `npm login --scope` routes only `@buslowicz` packages to GitHub. Other packages continue to use their usual registry. The archive already contains `dist`; registry installation requires no compiler or development dependencies. Restart Homebridge after installing.
+
+Use `-g` only for a standard global Homebridge plugin installation. For a custom plugin directory, install locally in that directory, omitting `-g`. For Docker, log in and install inside the container or its configured persistent plugin environment. The Homebridge dashboard's default npmjs.org search may not list this GitHub-hosted package; use its terminal for the command above.
+
+To update later, repeat the same install command and restart Homebridge. To select a specific published version, replace `@latest` with, for example, `@0.1.4`.
+
+### Migrate from the original unscoped package
+
+Stop Homebridge before replacing the plugin. In the same environment and installation scope where the original plugin was installed:
+
+```sh
+npm uninstall -g homebridge-huawei-fusionsolar-monitor
+npm install -g @buslowicz/homebridge-huawei-fusionsolar-monitor@latest
+```
+
+For an earlier local install, omit `-g` and run in its original plugin directory. Keep your platform configuration, Child Bridge settings, accessory cache and HomeKit pairing. The alias remains `HuaweiFusionSolarMonitor`, and accessory UUID seeds are unchanged. Homebridge 1.11.4 and 2.5.0 migrate the cached plugin association by this platform alias; both paths are tested.
+
+Install only one package identity at a time. If your configuration explicitly filters `plugins`, replace `homebridge-huawei-fusionsolar-monitor` there with `@buslowicz/homebridge-huawei-fusionsolar-monitor`. If `platform` uses the fully qualified old identifier, change it to `HuaweiFusionSolarMonitor` (or the new scoped qualified identifier). Then restart Homebridge. The usual unqualified platform entry shown below needs no change.
+
+## Alternative: install a release archive
+
 
 Download the `.tgz` from the [latest release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases/latest), transfer it to the Homebridge device, and run in its environment:
 
 ```sh
-npm install -g /full/path/homebridge-huawei-fusionsolar-monitor-0.1.1.tgz
+npm install -g /full/path/buslowicz-homebridge-huawei-fusionsolar-monitor-0.1.4.tgz
 ```
 
 The archive includes compiled runtime files and needs no build tools on Raspberry Pi. `-g` installs into the location searched by a standard global Homebridge installation. Use the same Node/npm environment and installation method as your other plugins. For a service with a custom plugin directory, install there according to that service's configuration.
@@ -42,7 +80,7 @@ Install the release archive and restart Homebridge in its dashboard. Keep the Hu
 
 ### Alternative: local installation from GitHub sources
 
-For a private repository, Git on the Homebridge device needs read access. Run in the project directory whose `node_modules` is configured as your service's plugin directory:
+The Git install also uses the scoped package identity. For a private repository, Git on the Homebridge device needs read access. Run in the project directory whose `node_modules` is configured as your service's plugin directory:
 
 ```sh
 npm install github:Buslowicz/homebridge-huawei-fusionsolar-monitor
@@ -164,7 +202,7 @@ Demo names identify synthetic devices; no Huawei connection or credentials are u
 | `rate-limit`, 407/429 | Wait; stop duplicate integrations or use a separate API account |
 | `network` | Internet, DNS, HTTPS certificate, region; certificate validation remains enabled |
 | `invalid-response` | Unexpected types/ranges, unsupported API code/version; inspect local state without sharing credentials |
-| `No plugin was found for the platform "HuaweiFusionSolarMonitor"` | Earlier `ERROR LOADING PLUGIN`, version 0.1.1+ for Git installs and service plugin directory. `npm list -g --depth=0 homebridge-huawei-fusionsolar-monitor` checks the current npm environment's global copy. |
+| `No plugin was found for the platform "HuaweiFusionSolarMonitor"` | Earlier `ERROR LOADING PLUGIN`, version 0.1.1+ for Git installs and service plugin directory. `npm list -g --depth=0 @buslowicz/homebridge-huawei-fusionsolar-monitor` checks the current npm environment's global copy. |
 | Empty values | Device KPI support, permissions and actual FusionSolar data |
 | Missing W/kWh in Apple Home | Use Controller characteristics; the plugin cannot redesign Apple Home |
 | Unavailable derived consumption | Confirm meter ID/sign, absence of batteries, all inverter/meter connectivity and current-cycle data |
@@ -187,5 +225,7 @@ Installation tests require Git/npm and exercise a real local Git dependency and 
 There are no runtime npm dependencies. TypeScript/ESLint and two Homebridge versions are build/test dependencies only. The `minimatch` 11.0.3 override addresses a development-tool vulnerability; tool behavior is covered by verification.
 
 Contracts use the supplied **SmartPVMS 26.1.0 NBI Reference, Issue 01, 2026-03-30**, sections 3.2, 4.2, 5.1.1–5.1.3 and 6.1. The Huawei document is not distributed. HomeKit references: [Homebridge template](https://github.com/homebridge/homebridge-plugin-template), [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS), [Controller custom characteristics](https://controllerforhomekit.wordpress.com/features/vendor-characteristics/).
+
+GitHub Packages publication uses the built-in `GITHUB_TOKEN` with `packages: write` only in the registry job. Exact-version SHA-512 integrity is checked before/after publishing; reruns accept an existing version only when its archive matches. Registry authentication/network errors fail the job rather than being treated as a missing package. Publication success includes an isolated global `npm install` from the registry. A package may already exist if a later installation check fails; rerunning verifies it without overwriting it. GitHub Releases remain an authenticated-registry-free installation alternative.
 
 Local tests do not verify your real Huawei account, specific SUN2000-10KTL-M1-HC firmware or physical Controller/iOS presentation. Check these after installation, including meter direction. Native Controller/Apple Home AXE/VoiceOver and whole-application WCAG audits have not been performed. No control, OAuth, Modbus or historical time-series retrieval is implemented; current counters do not reproduce all FusionSolar functionality. Historical reports describe their original tested packages, not automatic verification of later source changes.

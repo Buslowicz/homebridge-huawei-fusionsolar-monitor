@@ -12,8 +12,8 @@ import { githubClient, planRelease, publishRelease, selectVersion, validateArchi
 const execute = promisify(execFile);
 const sha = 'a'.repeat(40);
 const otherSha = 'b'.repeat(40);
-const name = 'homebridge-huawei-fusionsolar-monitor';
-const filename = `${name}-0.1.2.tgz`;
+const name = '@buslowicz/homebridge-huawei-fusionsolar-monitor';
+const filename = 'buslowicz-homebridge-huawei-fusionsolar-monitor-0.1.2.tgz';
 const repo = '/repos/example/monitor';
 const env = { GITHUB_SHA: sha, GITHUB_REPOSITORY: 'example/monitor', RELEASE_TAG: 'v0.1.2', RELEASE_VERSION: '0.1.2' };
 const hash = (data) => createHash('sha256').update(data).digest('hex');
