@@ -1,0 +1,28 @@
+{
+  "pluginAlias": "HuaweiFusionSolarMonitor",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Odczyt z konta Northbound/OpenAPI. Hasło zwykłego konta aplikacji FusionSolar nie wystarczy. Pomiary rozszerzone są przeznaczone do Controller for HomeKit; Apple Dom pokazuje wybrane standardowe czujniki. Plugin nie steruje falownikiem.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {"title": "Nazwa", "type": "string", "default": "Huawei FusionSolar"},
+      "baseUrl": {
+        "title": "Serwer FusionSolar (HTTPS)", "type": "string",
+        "description": "Adres serwera właściwego dla konta, np. https://eu5.fusionsolar.huawei.com. Sprawdź własny adres; przykład nie jest automatycznym wyborem regionu."
+      },
+      "username": {"title": "Login konta Northbound/OpenAPI", "type": "string", "description": "Można pominąć przy użyciu zmiennej środowiskowej FUSIONSOLAR_USERNAME."},
+      "password": {"title": "Hasło konta Northbound/OpenAPI", "type": "string", "format": "password", "description": "Można pominąć przy użyciu FUSIONSOLAR_PASSWORD. Wartości wpisane tutaj Homebridge zapisuje w swojej konfiguracji."},
+      "stationCodes": {
+        "title": "Wybrane identyfikatory instalacji", "type": "array", "maxItems": 100, "uniqueItems": true,
+        "items": {"type": "string", "minLength": 1, "maxLength": 128},
+        "description": "Opcjonalnie. Pusta lista oznacza wszystkie instalacje udostępnione kontu (maksymalnie 100). Użyj plantCode z API, np. NE=12345678."
+      },
+      "pollIntervalSeconds": {"title": "Odstęp odczytów (sekundy)", "type": "integer", "minimum": 300, "maximum": 3600, "default": 300, "description": "Odstęp od zakończenia cyklu. Huawei aktualizuje dane zwykle co 5 minut; kilka instancji na tym samym koncie współdzieli limity API."},
+      "alarms": {"title": "Odczyt aktywnych alarmów", "type": "boolean", "default": true, "description": "Odczyt co 30 minut. API nie zwraca historii skasowanych alarmów."},
+      "statusSensors": {"title": "Wirtualne czujniki w Apple Dom", "type": "boolean", "default": true, "description": "Czujniki kontaktowe oznaczają usterkę instalacji lub dodatnią produkcję PV. Są wyłącznie wskaźnikami, nie fizycznymi stykami."},
+      "writeSnapshot": {"title": "Lokalny plik pełnych odczytów", "type": "boolean", "default": true, "description": "Zapisuje najnowsze dane i pełne opisy alarmów w katalogu huawei-fusionsolar-monitor wewnątrz folderu danych Homebridge. Plik jest dostępny tylko dla właściciela w systemie. Nie zawiera hasła ani tokenu."},
+      "demo": {"title": "Tryb demonstracyjny (symulacja)", "type": "boolean", "default": false, "description": "Pokazuje sztuczne dane bez połączeń z Huawei i bez konta API. Po wyłączeniu wymagane są dane prawdziwego konta."}
+    }
+  }
+}
