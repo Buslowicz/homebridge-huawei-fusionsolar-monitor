@@ -75,7 +75,7 @@
         "title": "Power measurement services",
         "type": "boolean",
         "default": true,
-        "description": "Adds PV Production and estimated Home Consumption inside existing accessories. Meters show Grid Import/Export when direction is configured, otherwise raw signed Grid Power. Disable to remove these power services; detailed raw metrics require Detailed diagnostic telemetry."
+        "description": "Adds PV Production and estimated Home Consumption inside existing accessories. Meters show signed Grid Power, plus Grid Import/Export when direction is configured. Configured Grid Power is positive for import and negative for export. Disable to remove these power services; detailed raw metrics require Detailed diagnostic telemetry."
       },
       "gridPowerDirection": {
         "title": "Grid meter power direction",
@@ -86,7 +86,7 @@
           "positiveExport"
         ],
         "default": "unconfigured",
-        "description": "Unconfigured never guesses direction. Choosing positiveImport or positiveExport confirms the selected meter measures the grid connection and its positive-power direction. Applies to all selected plants. Verify night/import and export against FusionSolar."
+        "description": "Direction of the RAW API reading. If negative means import and positive means export, choose positiveExport. Grid Power is then displayed as positive import / negative export. Applies to selected grid-connection meters across all selected plants."
       },
       "gridMeterId": {
         "title": "Grid meter device ID (optional)",
@@ -100,7 +100,13 @@
         "title": "Detailed diagnostic telemetry",
         "type": "boolean",
         "default": false,
-        "description": "Optional; not needed for normal automations. Exposes all raw KPI groups, inverter temperature, signed Grid Power alongside directional meters, and alarm details. Also reads diagnostic device KPIs."
+        "description": "Optional; not needed for normal automations. Exposes all raw KPI groups, inverter temperature and alarm details. Also reads diagnostic device KPIs."
+      },
+      "matterEnergy": {
+        "title": "Native Matter home energy",
+        "type": "boolean",
+        "default": false,
+        "description": "Publishes one read-only whole-home power sensor per plant through Homebridge Matter. Requires Homebridge 2.5+, Matter enabled on this plugin's bridge, separate Matter pairing in Apple Home, and a confirmed grid meter direction. Keeps existing HomeKit accessories. Actual Energy-category display depends on the Apple OS/controller."
       }
     }
   }

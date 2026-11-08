@@ -16,7 +16,7 @@ The default profile keeps only readings useful for home automations. Power readi
 
 Every push to `main` runs [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml): locked dependency installation, type checking, lint, build, all tests and dependency audit. A successful build publishes a [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) containing a ready-to-install `.tgz` and `SHA256SUMS`. The same verified archive is then published as `@buslowicz/homebridge-huawei-fusionsolar-monitor` to GitHub Packages. The workflow does not change repository or package visibility. A new GitHub npm package starts private; its package settings control access independently of repository visibility.
 
-The first release uses the source `package.json` baseline (currently `0.2.0`). Subsequent releases increment the highest stable patch tag, for example `0.2.1`, `0.2.2`. Raising the source baseline starts a new minor/major series. Package versions are assigned only during the build; no version commits are added to `main`.
+The first release uses the source `package.json` baseline (currently `0.3.0`). Subsequent releases increment the highest stable patch tag, for example `0.3.1`, `0.3.2`. Raising the source baseline starts a new minor/major series. Package versions are assigned only during the build; no version commits are added to `main`.
 
 Tags identify the exact verified commit. Rerunning the same commit reuses its version and checks published files rather than overwriting them. Publication follows complete asset upload; a failed attempt may leave a tag or draft that a retry can finish. Releases run sequentially, with up to 100 queued runs under GitHub Actions limits.
 
@@ -44,7 +44,7 @@ The scoped registry mapping created by `npm login --scope` routes only `@buslowi
 
 Use `-g` only for a standard global Homebridge plugin installation. For a custom plugin directory, install locally in that directory, omitting `-g`. For Docker, log in and install inside the container or its configured persistent plugin environment. The Homebridge dashboard's default npmjs.org search may not list this GitHub-hosted package; use its terminal for the command above.
 
-To update later, repeat the same install command and restart Homebridge. To select a specific published version, replace `@latest` with, for example, `@0.2.0`.
+To update later, repeat the same install command and restart Homebridge. To select a specific published version, replace `@latest` with, for example, `@0.3.0`.
 
 ### Migrate from the original unscoped package
 
@@ -65,7 +65,7 @@ Install only one package identity at a time. If your configuration explicitly fi
 Download the `.tgz` from the [latest release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases/latest), transfer it to the Homebridge device, and run in its environment:
 
 ```sh
-npm install -g /full/path/buslowicz-homebridge-huawei-fusionsolar-monitor-0.2.0.tgz
+npm install -g /full/path/buslowicz-homebridge-huawei-fusionsolar-monitor-0.3.0.tgz
 ```
 
 The archive includes compiled runtime files and needs no build tools on Raspberry Pi. `-g` installs into the location searched by a standard global Homebridge installation. Use the same Node/npm environment and installation method as your other plugins. For a service with a custom plugin directory, install there according to that service's configuration.
@@ -125,7 +125,7 @@ The plugin discovers assigned plants and devices. By default, it exposes the fol
 | --- | --- |
 | Inverter | **PV Production** in W; optional production-active contact sensor |
 | Plant | Estimated **Home Consumption** in W when the safety conditions below are met; optional plant-fault contact sensor |
-| Grid meter | **Grid Import** and **Grid Export** in W when the sign convention is configured; otherwise only raw signed **Grid Power** in W |
+| Grid meter | **Grid Power** in W (positive import / negative export after direction setup), plus **Grid Import** and **Grid Export** when configured; otherwise only the raw signed reading |
 | Active alarms | One **Active alarms** count when `alarms: true` |
 
 `powerMeters` controls the power services; `statusSensors` controls the virtual contacts. Both default to `true`. `alarms` continues to control alarm retrieval and the alarm accessory. Detailed telemetry is disabled by default with `advancedTelemetry: false`. Accessories with no enabled services are omitted. In the default profile, `gridMeterId` also limits meter accessories to the selected meter.
@@ -136,7 +136,7 @@ The default profile removes cached diagnostic services when cached accessories a
 
 ### Opt-in detailed diagnostics
 
-Set `"advancedTelemetry": true` to expose the full measurement profile. This is not needed for normal automations. It adds generic `Huawei metrics 1` and subsequent KPI groups, inverter internal temperature, daily/cumulative energy, phase/PV/DC electrical measurements, state codes, receipt times and alarm details. Signed Grid Power is then also visible alongside configured Grid Import/Export. Group numbers are HomeKit subdivisions, not phase or panel numbers.
+Set `"advancedTelemetry": true` to expose the full measurement profile. This is not needed for normal automations. It adds generic `Huawei metrics 1` and subsequent KPI groups, inverter internal temperature, daily/cumulative energy, phase/PV/DC electrical measurements, state codes, receipt times and alarm details. Group numbers are HomeKit subdivisions, not phase or panel numbers.
 
 | Source | Diagnostic data when returned by Huawei |
 | --- | --- |
@@ -148,22 +148,50 @@ Set `"advancedTelemetry": true` to expose the full measurement profile. This is 
 
 EMI, battery/ESS and SmartAssistant diagnostic accessories and their KPI queries are enabled only with detailed telemetry. Discovery still detects batteries in the default profile so that Home Consumption is never calculated for a plant with a battery. Default device KPI queries cover inverters and grid meters, alongside plant queries and enabled alarms.
 
-In Controller, open accessory details and characteristics; aliases may be needed in some app versions. Labels include units, for example `Active power [kW]` and `Voltage phase A [V]`. Unknown scalar fields retain names based on API keys; units are never guessed. Firmware/model support varies. `null`, empty and `N/A` values remain unavailable. Physically absent PV inputs may be omitted or reported as zero by Huawei; that distinction is preserved. Inverter `active_power` is **kW**, while meter type 17/47 `active_power` is **W**. Original signed meter values are preserved. Positive/negative energy counters are not relabeled import/export without wiring confirmation. `day_use_energy` is Huawei's daily consumption; income currency is configured in FusionSolar, not assumed.
+In Controller, open accessory details and characteristics; aliases may be needed in some app versions. Labels include units, for example `Active power [kW]` and `Voltage phase A [V]`. Unknown scalar fields retain names based on API keys; units are never guessed. Firmware/model support varies. `null`, empty and `N/A` values remain unavailable. Physically absent PV inputs may be omitted or reported as zero by Huawei; that distinction is preserved. Inverter `active_power` is **kW**, while meter type 17/47 `active_power` is **W**. Raw meter values are preserved in diagnostic KPI fields and local snapshots; the dedicated Grid Power service is normalized once direction is configured. Positive/negative energy counters are not relabeled import/export without wiring confirmation. `day_use_energy` is Huawei's daily consumption; income currency is configured in FusionSolar, not assumed.
 
 ### Power services in existing accessories
 
 With `powerMeters: true` (default), these services are added inside existing accessories:
 
 - **PV Production**: inverter AC active power converted from kW to W.
-- **Grid Power**: the meter's original signed active power in W, unchanged; shown when direction is unconfigured or detailed telemetry is enabled.
+- **Grid Power**: positive import / negative export after the raw meter direction is configured. When direction is unconfigured, the original raw sign is retained. This signed reading remains visible in the simple profile alongside the directional readings.
 - **Grid Import** and **Grid Export**: nonnegative W after explicitly configuring the sign convention.
 - **Home Consumption (plant)**: estimated W, calculated as the sum of all inverter AC power plus signed grid import. It is not a synchronized device measurement.
 
 `gridPowerDirection` defaults to `unconfigured`: no import/export direction or household consumption is guessed. Set `positiveImport` only if positive meter power means import; set `positiveExport` if positive means export. Configuring either value explicitly confirms that the selected meter measures the **grid connection**, rather than a subcircuit. Verify the direction against FusionSolar both at night/during import and during export before using derived readings in automations. This global setting applies to selected meters across all selected plants; select only compatible plants.
 
+For meters that report **negative import and positive export**, set `"gridPowerDirection": "positiveExport"`. The dedicated Grid Power reading then displays +1100 W for a raw -1100 W import, and -2500 W for a raw +2500 W export. Grid Import/Export stay nonnegative directional measurements. Household calculations use original raw samples and apply the sign convention exactly once; for 3900 W PV and raw -1100 W import, household consumption is 5000 W. Raw diagnostic `Active power [W]` values remain unchanged.
+
 When a plant has multiple meters, set optional `gridMeterId` to the exact device ID string, for example `"1002"`. It must be a signed decimal string of up to 128 characters; numbers, whitespace and empty strings are rejected. Omit it to select the plant's unique meter automatically. An explicit ID limits meter selection; an ambiguous or missing selection is unavailable.
 
 Home Consumption is available only for plants without a battery, with all required sources connected and successfully read in the current polling cycle. Missing/failed data, ambiguous meters, disconnected sources and a negative derived result remain unavailable; no zero is inferred. Cloud measurements usually refresh about every five minutes and may not be synchronized. Setting `powerMeters: false` disables these power services. Original raw metrics are available only with `advancedTelemetry: true`. There is no fake switch.
+
+### Native Apple Home Energy through Matter
+
+The HAP power characteristics above are vendor extensions. Their presence does not populate Apple Home's Energy category. Enable optional `"matterEnergy": true` to also expose **one read-only whole-home power measurement per plant** through Homebridge's native Matter API. This requires Homebridge **2.5.0+**, Matter enabled for the actual bridge running this plugin, confirmed grid direction and a no-battery installation with complete current readings.
+
+For the negative-import / positive-export wiring convention:
+
+```json
+{
+  "gridPowerDirection": "positiveExport",
+  "matterEnergy": true
+}
+```
+
+Merge these fields into your existing Huawei platform configuration. They are not a replacement for server/account settings.
+
+1. Update the plugin and keep your existing HAP bridge/cache/pairing.
+2. In Homebridge **Plugins → Huawei plugin → Child Bridge Settings**, enable Matter if this plugin runs in a child bridge. When running on the main bridge instead, use **Settings → Matter Settings**. Enable it on the bridge hosting this plugin; enabling only the main bridge does not enable a child bridge.
+3. Save and restart that bridge. Retrieve its **Matter** QR code/PIN from Bridge Settings (or the main bridge's Matter Pairing Code widget).
+4. In Apple Home, add the Matter bridge with that code. Its commissioning is separate from the existing HAP bridge. The existing HAP power/status accessories remain available.
+
+See Homebridge's [Matter setup and pairing guide](https://github.com/homebridge-plugins/homebridge-matter/wiki/Enabling-Matter) and [electrical measurements guide](https://github.com/homebridge-plugins/homebridge-matter/wiki/Section-5-Smart-Plugs#electrical-power--energy-measurement). The latter documents electrical measurement display in compatible Apple Home controllers on iOS 27+. The plugin publishes a proper ElectricalSensor with an ElectricalPowerMeasurement cluster; it does not claim to be a controllable outlet or switch. Actual Energy-category routing/rendering in the user's macOS/iOS beta remains to be checked after pairing; a plugin cannot force Apple's category assignment.
+
+Only **Home Consumption** is sent to the native energy channel. PV production and grid import/export are not published there as extra consuming devices: adding them to a consumption total would count the same flows more than once. They remain available as separate HAP measurements in Controller. This integration provides current power, not fabricated cumulative kWh or an EnergyKit history.
+
+Matter active power uses integer mW internally: 1100 W becomes 1,100,000 mW. Failed, missing, disconnected, stale or unsafe estimates are sent as unavailable (`null`, unreachable), not zero. Cached readings are invalidated on restore; successful registration alone does not make a cached value current. Homebridge 1 continues to support HAP monitoring; native Matter energy is unavailable there. Disable the plugin's Matter energy option to remove its native endpoints while preserving HAP accessories.
 
 ### Selected data in Apple Home
 
@@ -248,4 +276,4 @@ Contracts use the supplied **SmartPVMS 26.1.0 NBI Reference, Issue 01, 2026-03-3
 
 GitHub Packages publication uses the built-in `GITHUB_TOKEN` with `packages: write` only in the registry job. Exact-version SHA-512 integrity is checked before/after publishing; reruns accept an existing version only when its archive matches. Registry authentication/network errors fail the job rather than being treated as a missing package. Publication success includes an isolated global `npm install` from the registry. A package may already exist if a later installation check fails; rerunning verifies it without overwriting it. GitHub Releases remain an authenticated-registry-free installation alternative.
 
-Local tests do not verify your real Huawei account, specific SUN2000-10KTL-M1-HC firmware or physical Controller/iOS presentation. Check these after installation, including meter direction. Native Controller/Apple Home AXE/VoiceOver and whole-application WCAG audits have not been performed. No control, OAuth, Modbus or historical time-series retrieval is implemented; current counters do not reproduce all FusionSolar functionality. Historical reports describe their original tested packages, not automatic verification of later source changes.
+Local tests do not verify your real Huawei account, specific SUN2000-10KTL-M1-HC firmware or physical Controller/iOS presentation. Check these after installation, including meter direction. Native Controller/Apple Home AXE/VoiceOver and whole-application WCAG audits have not been performed. Native Matter protocol measurements are tested separately from physical Apple Home rendering. No control, OAuth, Modbus or historical time-series retrieval is implemented; current counters do not reproduce all FusionSolar functionality. Historical reports describe their original tested packages, not automatic verification of later source changes.

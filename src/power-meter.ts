@@ -35,7 +35,7 @@ export class PowerMeters {
     const definitions: readonly (readonly [string, string])[] = !options.powerMeters ? []
       : typeId === 1 || typeId === 38 ? [['production', 'PV Production']]
         : typeId === 17 || typeId === 47 ? [
-          ...(options.advancedTelemetry || options.gridPowerDirection === 'unconfigured' ? [['grid', 'Grid Power']] as const : []),
+          ['grid', 'Grid Power'],
           ...(options.gridPowerDirection === 'unconfigured' ? [] : [['import', 'Grid Import'], ['export', 'Grid Export']] as const)
         ] : typeId === 'plant' && options.gridPowerDirection !== 'unconfigured' ? [['consumption', 'Home Consumption']] : [];
     const wanted = new Set(definitions.map(([key]) => `power-${key}`));
@@ -87,8 +87,9 @@ export class PowerMeters {
     if (this.typeId === 1 || this.typeId === 38) {
       this.set('production', productionWatts(metrics, this.typeId));
     } else {
-      this.set('grid', power);
       const imported = power === undefined ? undefined : gridImportWatts(power, this.options.gridPowerDirection);
+      // The display convention is positive import / negative export once the raw direction is confirmed.
+      this.set('grid', imported === undefined ? power : imported === 0 ? 0 : imported);
       this.set('import', imported === undefined ? undefined : Math.max(0, imported));
       this.set('export', imported === undefined ? undefined : Math.max(0, -imported));
     }

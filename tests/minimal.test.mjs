@@ -33,7 +33,7 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
       const plant = source(h.registered, 'plant');
       const alarms = source(h.registered, 'alarms');
       assert.equal(inverter.services.length - 1, 2);
-      assert.equal(meter.services.length - 1, 2);
+      assert.equal(meter.services.length - 1, 3);
       assert.equal(plant.services.length - 1, 2);
       assert.equal(alarms.services.length - 1, 1);
       for (const [accessory, key, watts] of [[inverter, 'production', 3900], [plant, 'consumption', 2800], [meter, 'import', 0], [meter, 'export', 1100]]) {
@@ -41,7 +41,7 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
         assert.equal(await reading.handleGetRequest(), watts);
         assert.deepEqual(reading.props.perms.sort(), ['ev', 'pr']);
       }
-      assert.equal(power(meter, 'grid'), undefined);
+      assert.equal(await power(meter, 'grid').handleGetRequest(), -1100);
       assert.equal(await find(alarms, 'Active alarms').handleGetRequest(), 0);
       assert.equal(alarms.services[1].displayName, 'Huawei Active Alarms');
       const native = (a, subtype) => a.getServiceById(h.api.hap.Service.ContactSensor, subtype).getCharacteristic(h.api.hap.Characteristic.ContactSensorState);
@@ -73,7 +73,7 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
       await advanced.platform.pollOnce();
       assert.equal(advanced.registered.length, 5);
       assert.ok(calls.includes(10));
-      const ids = new Map(advanced.registered.map((a) => [a.UUID, a.services.filter((s) => s.UUID === POWER_SERVICE_UUID || s.UUID === advanced.api.hap.Service.ContactSensor.UUID || s.characteristics.some((c) => c.displayName === 'Active alarms')).map((s) => s.getServiceId()).filter((id) => !id.endsWith('power-grid'))]));
+      const ids = new Map(advanced.registered.map((a) => [a.UUID, a.services.filter((s) => s.UUID === POWER_SERVICE_UUID || s.UUID === advanced.api.hap.Service.ContactSensor.UUID || s.characteristics.some((c) => c.displayName === 'Active alarms')).map((s) => s.getServiceId())]));
       const restored = advanced.registered.map((a) => advanced.api.platformAccessory.deserialize(advanced.api.platformAccessory.serialize(a)));
       advanced.platform.stop();
       calls.length = 0;

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
+import type { API, DynamicPlatformPlugin, Logging, MatterAccessory, PlatformAccessory, PlatformConfig } from 'homebridge';
 import { FusionSolarClient, ApiError } from './api-client.js';
 import { TelemetryAccessory, accessoryName } from './accessory.js';
 import { parseConfig } from './config.js';
@@ -11,11 +11,12 @@ import { writeSnapshot } from './snapshot.js';
 import { homeConsumptionWatts } from './power.js';
 import type { MetricMap } from './contracts.js';
 import type { TelemetryOptions } from './accessory.js';
+import { MatterEnergy } from './matter-energy.js';
+import { PLUGIN_NAME, PLATFORM_NAME } from './identifiers.js';
 
-export const PLUGIN_NAME = '@buslowicz/homebridge-huawei-fusionsolar-monitor';
+export { PLUGIN_NAME, PLATFORM_NAME } from './identifiers.js';
 // Freeze the original identity seed so changing npm registry/name preserves HomeKit pairing and automations.
 const ACCESSORY_IDENTITY_SEED = 'homebridge-huawei-fusionsolar-monitor';
-export const PLATFORM_NAME = 'HuaweiFusionSolarMonitor';
 type Accessory = PlatformAccessory<Record<string, unknown>>;
 type Kind = 'plant' | 'device' | 'alarms';
 
@@ -36,6 +37,7 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
   private readonly client: FusionSolarApi | undefined;
   private readonly now: () => number;
   private readonly instanceId: string;
+  private readonly matterEnergy: MatterEnergy | undefined;
   private readonly accessories = new Map<string, Accessory>();
   private readonly telemetry = new Map<string, TelemetryAccessory>();
   private readonly sources = new Map<string, SourceState>();
@@ -61,6 +63,12 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
       this.log.error(error instanceof Error && !(error instanceof ApiError) ? error.message : 'Invalid FusionSolar configuration.');
     }
     this.instanceId = createHash('sha256').update(`${this.config?.baseUrl ?? ''}\0${this.config?.username ?? ''}`).digest('hex').slice(0, 16);
+    if (this.config?.matterEnergy) {
+      this.matterEnergy = new MatterEnergy(this.api, this.instanceId, this.maxAgeMs(), this.log, this.now);
+      if (this.config.gridPowerDirection === 'unconfigured') {
+        this.log.warn('Set gridPowerDirection before using native Matter home energy measurements.');
+      }
+    }
     this.api.on('didFinishLaunching', () => this.start());
     this.api.on('shutdown', () => this.stop());
   }
@@ -74,6 +82,28 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
     const wrapper = new TelemetryAccessory(accessory, this.api, typeId, isAlarms ? 3_660_000 : this.maxAgeMs(), !isAlarms && (this.config?.statusSensors ?? false), this.now, this.powerOptions(isAlarms, sourceId));
     wrapper.unavailable();
     this.telemetry.set(accessory.UUID, wrapper);
+  }
+
+  configureMatterAccessory(accessory: MatterAccessory): void {
+    if (this.matterEnergy) {
+      this.matterEnergy.restore(accessory);
+    } else {
+      // An opt-out removes the old native endpoint; retained HAP accessories are independent.
+      void this.removeDisabledMatterAccessory(accessory);
+    }
+  }
+
+  private async removeDisabledMatterAccessory(accessory: MatterAccessory): Promise<void> {
+    const matter = this.api.matter;
+    if (!matter) {
+      return;
+    }
+    try {
+      // Removal itself makes the endpoint unavailable. A state write is fire-and-forget and could race destruction.
+      await matter.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    } catch {
+      this.log.warn('Could not remove a disabled Matter energy accessory.');
+    }
   }
 
   private maxAgeMs(): number {
@@ -166,6 +196,7 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
         }, ids.map((id) => this.uuid('device', id)));
       }
       if (!this.stopped) {
+        const updates: Promise<void>[] = [];
         for (const plant of this.plants) {
           const devices = this.devices.filter((device) => device.stationCode === plant.code);
           const plantSample = plantSamples.get(plant.code);
@@ -176,13 +207,20 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
             || ([17, 47].includes(device.typeId) && (this.config!.gridMeterId === undefined || device.id === this.config!.gridMeterId)));
           const receivedAt = Math.min(this.now(), ...contributors.map((device) => sampleTimes.get(device.id) ?? 0));
           this.telemetry.get(this.uuid('plant', plant.code))?.updateHomeConsumption(value, receivedAt);
-          if (this.config.powerMeters && this.config.gridPowerDirection !== 'unconfigured') {
+          if (this.matterEnergy) {
+            updates.push(this.matterEnergy.update(plant.code, value, receivedAt));
+          }
+          if ((this.config.powerMeters || this.config.matterEnergy) && this.config.gridPowerDirection !== 'unconfigured') {
             this.sources.set(`power-${plant.code}`, {
               receivedAt: value === undefined ? null : new Date(receivedAt).toISOString(),
               available: value !== undefined && this.now() - receivedAt <= this.maxAgeMs(),
               data: { homeConsumptionW: value ?? null, gridPowerDirection: this.config.gridPowerDirection, estimated: true }
             });
           }
+        }
+        const results = await Promise.allSettled(updates);
+        if (results.some((result) => result.status === 'rejected')) {
+          this.log.warn('Native Matter energy update failed; HomeKit monitoring continues.');
         }
       }
       if (!this.stopped && this.config.alarms && this.now() >= this.alarmsDue) {
@@ -202,6 +240,10 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
     } catch (error: unknown) {
       for (const plant of this.plants) {
         this.telemetry.get(this.uuid('plant', plant.code))?.updateHomeConsumption(undefined, this.now());
+      }
+      const native = this.matterEnergy;
+      if (native) {
+        await Promise.allSettled(this.plants.map((plant) => native.update(plant.code, undefined, this.now())));
       }
       this.report(error, 'FusionSolar polling');
     } finally {
@@ -257,6 +299,11 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
       }
     }
     this.api.updatePlatformAccessories([...this.accessories.values()]);
+    try {
+      await this.matterEnergy?.discover(plants);
+    } catch {
+      this.log.warn('Native Matter energy registration failed; HomeKit monitoring continues.');
+    }
     this.log.info(`Discovered plants: ${plants.length}; devices: ${devices.length}. Read-only monitoring.`);
   }
 
@@ -365,6 +412,7 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
       clearTimeout(this.timer);
     }
     this.client?.close();
+    this.matterEnergy?.close();
     for (const wrapper of this.telemetry.values()) {
       wrapper.close();
     }

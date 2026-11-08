@@ -36,3 +36,10 @@ test('detailed diagnostic telemetry rejects null and nonboolean values', () => {
     assert.throws(() => config({ advancedTelemetry }), /advancedTelemetry must be true or false/);
   }
 });
+
+
+test('native Matter energy is opt-in and requires a boolean', () => {
+  assert.equal(config().matterEnergy, false);
+  for (const matterEnergy of [true, false]) assert.equal(config({ matterEnergy }).matterEnergy, matterEnergy);
+  for (const matterEnergy of [null, 0, 1, '', 'true', {}, []]) assert.throws(() => config({ matterEnergy }), /matterEnergy/);
+});

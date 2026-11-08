@@ -9,6 +9,7 @@ export interface MonitorConfig {
   readonly writeSnapshot: boolean;
   readonly powerMeters: boolean;
   readonly advancedTelemetry: boolean;
+  readonly matterEnergy: boolean;
   readonly gridPowerDirection: 'unconfigured' | 'positiveImport' | 'positiveExport';
   readonly gridMeterId: string | undefined;
   readonly demo: boolean;
@@ -91,6 +92,7 @@ export function parseConfig(value: unknown, env: Readonly<Record<string, string 
     writeSnapshot: flag(raw.writeSnapshot, true, 'writeSnapshot'),
     powerMeters: flag(raw.powerMeters, true, 'powerMeters'),
     advancedTelemetry: flag(raw.advancedTelemetry, false, 'advancedTelemetry'),
+    matterEnergy: flag(raw.matterEnergy, false, 'matterEnergy'),
     gridPowerDirection,
     gridMeterId,
     demo

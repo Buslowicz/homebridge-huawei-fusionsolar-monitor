@@ -45,7 +45,7 @@ test('scoped archive loads in Homebridge 1/2, migrates full telemetry to minimal
     const legacyPlugin = join(directory, 'legacy');
     await cp(plugin, legacyPlugin, { recursive: true });
     await writeFile(join(legacyPlugin, 'package.json'), JSON.stringify({ ...manifest, name: legacyName }));
-    const platformPath = join(legacyPlugin, 'dist/platform.js');
+    const platformPath = join(legacyPlugin, 'dist/identifiers.js');
     const platformSource = await readFile(platformPath, 'utf8');
     assert.ok(platformSource.includes(`export const PLUGIN_NAME = '${packageName}'`));
     await writeFile(platformPath, platformSource.replace(`export const PLUGIN_NAME = '${packageName}'`, `export const PLUGIN_NAME = '${legacyName}'`));
@@ -60,7 +60,7 @@ test('scoped archive loads in Homebridge 1/2, migrates full telemetry to minimal
       const configuration = {
         bridge: { name: `Huawei test ${version}`, username: version.startsWith('1') ? '0E:AA:BB:CC:11:42' : '0E:AA:BB:CC:22:42', port, pin, bind: ['127.0.0.1'], advertiser: 'ciao' },
         plugins: [packageName],
-        platforms: [{ platform: 'HuaweiFusionSolarMonitor', demo: true, writeSnapshot: true, gridPowerDirection: 'positiveImport', gridMeterId: '1002' }],
+        platforms: [{ platform: 'HuaweiFusionSolarMonitor', demo: true, writeSnapshot: true, gridPowerDirection: 'positiveExport', gridMeterId: '1002' }],
         accessories: []
       };
       let previousIds;
@@ -114,16 +114,15 @@ test('scoped archive loads in Homebridge 1/2, migrates full telemetry to minimal
           assert.ok(!readings.some((r) => /API received at|Internal temperature|PV1 voltage|Alarm 1 -|Alarms critical/u.test(r.description ?? '')));
           const ownServices = payload.accessories.filter((a) => a.aid !== 1).flatMap((a) => a.services)
             .filter((s) => !['3E', '0000003E-0000-1000-8000-0026BB765291'].includes(s.type.toUpperCase()));
-          assert.equal(ownServices.length, 7, 'only four power meters, two status sensors and one alarm count remain');
+          assert.equal(ownServices.length, 8, 'only five power readings, two status sensors and one alarm count remain');
         }
         const productionMeter = readings.find((r) => r.description === 'PV Production [W]');
         const homeMeter = readings.find((r) => r.description === 'Home Consumption [W]');
         const gridMeter = readings.find((r) => r.description === 'Grid Power [W]');
         const importMeter = readings.find((r) => r.description === 'Grid Import [W]');
         const exportMeter = readings.find((r) => r.description === 'Grid Export [W]');
-        if (advanced) assert.equal(gridMeter.value, -1100);
-        else assert.equal(gridMeter, undefined, 'signed raw meter service removed once import/export are configured');
-        for (const [reading, expected] of [[productionMeter, 3900], [homeMeter, 2800], [importMeter, 0], [exportMeter, 1100]]) {
+        assert.equal(gridMeter.value, 1100, 'signed grid power is positive import in both profiles');
+        for (const [reading, expected] of [[productionMeter, 3900], [homeMeter, 5000], [importMeter, 1100], [exportMeter, 0]]) {
           assert.ok(reading, 'electrical meter is present in the actual HAP response');
           assert.equal(reading.type.toUpperCase(), 'E863F10D-079E-48FF-8F27-9C2605A29F52');
           assert.equal(reading.value, expected);
@@ -136,7 +135,7 @@ test('scoped archive loads in Homebridge 1/2, migrates full telemetry to minimal
           .filter((s) => ['80', '00000080-0000-1000-8000-0026BB765291'].includes(s.type.toUpperCase()))
           .flatMap((s) => s.characteristics.filter((r) => ['6A', '0000006A-0000-1000-8000-0026BB765291'].includes(r.type.toUpperCase())).map((r) => ({ aid: accessory.aid, ...r }))));
         assert.equal(contacts.length, 2);
-        const ids = [productionMeter, homeMeter, importMeter, exportMeter, alarmCount, ...contacts].map((r) => ({ aid: r.aid, iid: r.iid }));
+        const ids = [productionMeter, homeMeter, gridMeter, importMeter, exportMeter, alarmCount, ...contacts].map((r) => ({ aid: r.aid, iid: r.iid }));
         if (previousIds) assert.deepEqual(ids, previousIds, 'retained power/status/alarm identifiers survive minimal mode migration and restart');
         previousIds = ids;
         const write = await fetch(`http://127.0.0.1:${port}/characteristics`, {
@@ -150,7 +149,7 @@ test('scoped archive loads in Homebridge 1/2, migrates full telemetry to minimal
         const snapshot = JSON.parse(await readFile(join(storage, 'huawei-fusionsolar-monitor', snapshots[0]), 'utf8'));
         assert.equal(snapshot.demo, true);
         assert.equal(snapshot.sources['devices-38'].data[0].values.active_power, 3.9);
-        assert.equal(snapshot.sources['power-DEMO'].data.homeConsumptionW, 2800);
+        assert.equal(snapshot.sources['power-DEMO'].data.homeConsumptionW, 5000);
         child.kill('SIGTERM');
         await exited;
         // HB1 retains a 5s exit(143) fallback; HB2 unrefs it and cleanly exits(0).
