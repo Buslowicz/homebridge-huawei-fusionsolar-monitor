@@ -56,7 +56,9 @@ jobs:
         run: npm audit
 
       - name: Pack installable plugin
-        run: npm pack --json --pack-destination release
+        run: |
+          mkdir -p release
+          npm pack --json --pack-destination release
 
       - name: Pass the verified package to publication
         id: package
