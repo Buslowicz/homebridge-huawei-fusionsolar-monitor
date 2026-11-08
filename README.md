@@ -1,6 +1,6 @@
 # Huawei FusionSolar Monitor dla Homebridge
 
-Plugin udostępnia odczyty z chmury Huawei FusionSolar przez HomeKit. Wersja 0.1.0 jest przeznaczona przede wszystkim do domowego falownika SUN2000 i licznika energii. Nie wymaga magazynu energii. Niczego nie włącza, nie wyłącza ani nie zmienia ustawień instalacji.
+Plugin udostępnia odczyty z chmury Huawei FusionSolar przez HomeKit. Wersja 0.1.1 jest przeznaczona przede wszystkim do domowego falownika SUN2000 i licznika energii. Nie wymaga magazynu energii. Niczego nie włącza, nie wyłącza ani nie zmienia ustawień instalacji.
 
 Pełny zestaw pomiarów jest przeznaczony do **Controller for HomeKit**. Eve nie jest wymagana. Apple Dom pokazuje standardowe czujniki, ale nie zapewnia pełnego widoku dowolnych pomiarów elektrycznych. Wygląd i obsługę własnych charakterystyk trzeba sprawdzić w używanej wersji Controller na telefonie; nie są one osobnym ekranem graficznym dodawanym do Apple Dom.
 
@@ -12,13 +12,37 @@ Pełny zestaw pomiarów jest przeznaczony do **Controller for HomeKit**. Eve nie
 - Właściwy adres regionalnego serwera FusionSolar. Przykład `eu5` poniżej nie oznacza, że Twoje konto znajduje się właśnie tam.
 - Dostęp serwera Homebridge do Internetu po HTTPS. To integracja chmurowa, nie lokalny Modbus.
 
-## Instalacja z dostarczonej paczki
+## Instalacja z gotowej paczki (zalecana)
 
-Plugin nie został opublikowany w publicznym npm. Przenieś plik `homebridge-huawei-fusionsolar-monitor-0.1.0.tgz` do środowiska, w którym działa Homebridge, i w jego terminalu wykonaj:
+Plugin nie został opublikowany w publicznym npm. Pobierz paczkę `homebridge-huawei-fusionsolar-monitor-0.1.1.tgz`, przenieś ją na urządzenie Homebridge i w terminalu jego środowiska wykonaj:
 
 ```sh
-npm install -g /pełna/ścieżka/homebridge-huawei-fusionsolar-monitor-0.1.0.tgz
+npm install -g /pełna/ścieżka/homebridge-huawei-fusionsolar-monitor-0.1.1.tgz
 ```
+
+Gotowa paczka zawiera pliki startowe i nie wymaga budowania kodu na Raspberry Pi. Opcja `-g` instaluje ją globalnie, w miejscu przeszukiwanym przez standardową instalację Homebridge. Używaj tego samego środowiska Node/npm i sposobu instalowania co dla pozostałych pluginów. Jeśli usługa działa z własnym katalogiem pluginów, zainstaluj paczkę do tego katalogu zgodnie z konfiguracją swojej usługi.
+
+Jeśli wcześniej zainstalowałeś wersję 0.1.0 lokalnie z GitHuba, usuń tę kopię, wykonując w **tym samym katalogu, w którym była instalowana**:
+
+```sh
+npm uninstall homebridge-huawei-fusionsolar-monitor
+```
+
+Następnie zainstaluj gotową paczkę i zrestartuj Homebridge w jego panelu. Nie trzeba usuwać konfiguracji Huawei ani parowania akcesoriów.
+
+### Alternatywa: instalacja lokalna ze źródeł GitHuba
+
+Repozytorium jest prywatne, więc Git na urządzeniu Homebridge musi mieć dostęp do Twojego konta GitHub. Tej metody używaj w katalogu projektu, którego `node_modules` jest skonfigurowanym katalogiem pluginów Twojej usługi Homebridge:
+
+```sh
+npm install github:Buslowicz/homebridge-huawei-fusionsolar-monitor
+```
+
+Samo uruchomienie tego polecenia w dowolnym katalogu domowym nie sprawi, że Homebridge odnajdzie plugin. Jeśli nie znasz katalogu pluginów swojej usługi, użyj gotowej paczki i standardowej instalacji globalnej opisanej powyżej.
+
+Wersja 0.1.1 dodaje automatyczne budowanie przez skrypt `prepare` przy instalacji z GitHuba. Nie używaj `--ignore-scripts` dla instalacji ze źródeł: repozytorium nie przechowuje katalogu `dist`, a ten skrypt tworzy plik startowy pluginu. Narzędzia budowania są instalowane tymczasowo; końcowy plugin nie zawiera kopii Homebridge ani zależności deweloperskich.
+
+Nie zalecamy `npm install -g github:...`: podczas testów npm 11.6.2 i 11.16.0 przekazywał tryb globalny do przygotowania zależności Git, zostawiając link do usuwanego katalogu tymczasowego. Dla instalacji globalnej użyj gotowego pliku `.tgz`. To ograniczenie dotyczy ścieżki instalowania z Git, nie działania pluginu po poprawnej instalacji.
 
 W Dockerze plik i polecenie muszą znajdować się w kontenerze Homebridge albo w jego dostępnym wolumenie. Plugin instaluj tym samym sposobem i w tym samym środowisku co pozostałe pluginy swojej instalacji. Nie trzeba instalować narzędzi programistycznych ani zależności do testów.
 
@@ -119,6 +143,7 @@ Nazwy zawierają `Symulacja`, a log wyraźnie wskazuje tryb DEMO. Po przejściu 
 | `rate-limit`, 407/429 | Poczekaj; wyłącz inne kopie korzystające z tego samego konta lub użyj osobnego konta API |
 | `network` | Internet, DNS, certyfikat HTTPS i adres regionu; plugin nie wyłącza kontroli certyfikatów |
 | `invalid-response` | Nieoczekiwany format/typ/zakres danych, nieobsługiwany kod API albo niezgodna wersja platformy; sprawdź lokalny stan bez publikowania hasła i tokenu |
+| `No plugin was found for the platform "HuaweiFusionSolarMonitor"` | Homebridge nie załadował pluginu. Sprawdź wcześniejszy komunikat `ERROR LOADING PLUGIN`, użyj wersji co najmniej 0.1.1 dla instalacji z GitHuba i upewnij się, że plugin jest zainstalowany w katalogu przeszukiwanym przez usługę. `npm list -g --depth=0 homebridge-huawei-fusionsolar-monitor` sprawdza kopię globalną w bieżącym środowisku npm. |
 | Puste pola | Urządzenie może nie udostępniać danego KPI; sprawdź typ urządzenia, uprawnienia i to, czy dane istnieją w FusionSolar |
 | Brak W/kWh w Apple Dom | Użyj widoku charakterystyk w Controller for HomeKit; plugin nie może dowolnie zmienić interfejsu Apple Dom |
 
@@ -134,6 +159,8 @@ npm pack
 ```
 
 Testy API uruchamiają prawdziwy lokalny serwer HTTPS z osobnym certyfikatem testowym. Klucz w `tests/fixtures` dotyczy wyłącznie localhost i nie jest pakowany do pluginu. Testy Homebridge uruchamiają odizolowany bridge demonstracyjny, używają wyłącznie lokalnych portów i nie kontaktują się z Huawei. W niektórych środowiskach wymagane jest zezwolenie na lokalne nasłuchiwanie.
+
+Testy instalacji wymagają Git i npm: sprawdzają rzeczywistą lokalną zależność Git oraz globalną instalację gotowej paczki. Używają pamięci npm wskazanej przez `FUSIONSOLAR_TEST_NPM_CACHE` albo `npm_config_cache`; przy pustej pamięci potrzebny jest dostęp do rejestru npm. Wyniki i ograniczenie globalnej instalacji Git opisano w [raporcie poprawki 0.1.1](docs/installation-fix.md).
 
 Plugin nie ma zależności wykonawczych npm. Narzędzia TypeScript/ESLint i dwie wersje Homebridge są zależnościami wyłącznie do budowania/testów. Nadpisanie `minimatch` do 11.0.3 usuwa zgłoszoną podatność narzędzi deweloperskich; działanie narzędzi jest objęte weryfikacją.
 
