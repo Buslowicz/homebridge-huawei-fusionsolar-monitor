@@ -12,9 +12,19 @@ Pełny zestaw pomiarów jest przeznaczony do **Controller for HomeKit**. Eve nie
 - Właściwy adres regionalnego serwera FusionSolar. Przykład `eu5` poniżej nie oznacza, że Twoje konto znajduje się właśnie tam.
 - Dostęp serwera Homebridge do Internetu po HTTPS. To integracja chmurowa, nie lokalny Modbus.
 
+## Automatyczne wydania
+
+Każdy push na `main` uruchamia [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml). Akcja instaluje zależności z pliku blokady, sprawdza typy i lint, buduje projekt, uruchamia wszystkie testy i audyt zależności. Po powodzeniu publikuje [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) z gotowym plikiem `.tgz` i `SHA256SUMS`. Repozytorium i jego wydania zachowują prywatną widoczność.
+
+Pierwsze wydanie korzysta z wersji bazowej `package.json` (obecnie `0.1.1`). Następne automatycznie zwiększają numer patch względem najwyższego stabilnego tagu, np. `0.1.2`, `0.1.3`. Podniesienie wersji bazowej w źródłach pozwala rozpocząć nową serię minor/major. Wersja paczki jest ustawiana tylko w środowisku budowania; akcja nie dopisuje commitów z numerami wersji do `main`.
+
+Tag wskazuje dokładny sprawdzony commit. Ponowienie akcji dla tego samego commitu używa tego samego numeru i weryfikuje już opublikowane pliki, zamiast je nadpisywać. Publikacja odbywa się po przesłaniu kompletnej paczki i sumy kontrolnej; po nieudanej próbie może pozostać tag lub szkic wydania, który następne uruchomienie może dokończyć. Kolejka przetwarza wydania pojedynczo i mieści do 100 oczekujących uruchomień zgodnie z limitem GitHub Actions.
+
+Akcję można też uruchomić ręcznie przez **Actions → Build and release → Run workflow** na `main`. Korzysta z wbudowanego `GITHUB_TOKEN`; dodatkowe sekrety nie są wymagane. Etap testów ma uprawnienia tylko do odczytu repozytorium, a prawo publikacji otrzymuje osobny etap pracujący na gotowej paczce.
+
 ## Instalacja z gotowej paczki (zalecana)
 
-Plugin nie został opublikowany w publicznym npm. Pobierz paczkę `homebridge-huawei-fusionsolar-monitor-0.1.1.tgz`, przenieś ją na urządzenie Homebridge i w terminalu jego środowiska wykonaj:
+Pobierz paczkę `.tgz` z [najnowszego wydania](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases/latest), przenieś ją na urządzenie Homebridge i w terminalu jego środowiska wykonaj polecenie z nazwą pobranego pliku, na przykład:
 
 ```sh
 npm install -g /pełna/ścieżka/homebridge-huawei-fusionsolar-monitor-0.1.1.tgz

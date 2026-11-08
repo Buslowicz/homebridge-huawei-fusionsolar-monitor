@@ -1,0 +1,102 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Keep queued pushes instead of replacing the previous pending release.
+concurrency:
+  group: release-main
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and build plugin
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      artifact-id: ${{ steps.package.outputs.artifact-id }}
+    steps:
+      - name: Checkout source and release tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Select release version
+        id: version
+        run: node .github/scripts/release.mjs plan
+
+      - name: Set package version for this build
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: npm version --no-git-tag-version --allow-same-version "$RELEASE_VERSION"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify types, lint, build and tests
+        run: npm run verify
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Pack installable plugin
+        run: npm pack --json --pack-destination release
+
+      - name: Pass the verified package to publication
+        id: package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: plugin-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/*.tgz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the verified source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js without dependency cache
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Download the package from this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          merge-multiple: true
+          path: release
+
+      - name: Publish package and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: node .github/scripts/release.mjs publish

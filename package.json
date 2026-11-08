@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src",
+    "lint": "eslint src .github/scripts",
     "test": "node --test tests/*.test.mjs",
     "verify": "npm run typecheck && npm run lint && npm run build && npm test",
     "prepare": "npm run build"
