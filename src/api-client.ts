@@ -244,7 +244,7 @@ export class FusionSolarClient implements FusionSolarApi {
   }
   async activeAlarms(stationCodes: readonly string[]): Promise<readonly Alarm[]> {
     const requested = inputs(stationCodes);
-    const data = await this.query('getAlarmList', { stationCodes: requested.join(','), beginTime: 0, endTime: this.now(), language: 'pl_PL' });
+    const data = await this.query('getAlarmList', { stationCodes: requested.join(','), beginTime: 0, endTime: this.now(), language: 'en_US' });
     return list(data).map(raw => {
       const item = object(raw); const stationCode = code(item.stationCode); if (!requested.includes(stationCode)) invalid();
       const severity = integer(item.lev, 1);

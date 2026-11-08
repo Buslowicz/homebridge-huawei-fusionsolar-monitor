@@ -78,7 +78,7 @@ test('read-only endpoint bodies, pagination, PII stripping, all scalar KPIs and 
   assert.deepEqual(await f.client.deviceKpis(38, ['1']), [{ id: '1', values: { temperature: -7.3 } }]);
   assert.deepEqual(await f.client.activeAlarms(['P1']), [{ stationCode: 'P1', serial: '', name: 'Grid alarm', id: 2032, severity: 2, raisedAt: 1, cause: '', suggestion: '' }]);
   assert.deepEqual(f.calls.map(call => call.path), ['/thirdData/login', '/thirdData/stations', '/thirdData/stations', '/thirdData/getDevList', '/thirdData/getStationRealKpi', '/thirdData/getDevRealKpi', '/thirdData/getAlarmList']);
-  assert.deepEqual(f.calls.slice(1).map(call => call.body), [{ pageNo: 1 }, { pageNo: 2 }, { stationCodes: 'P1' }, { stationCodes: 'P1' }, { devTypeId: 38, devIds: '1' }, { stationCodes: 'P1', beginTime: 0, endTime: f.now, language: 'pl_PL' }]);
+  assert.deepEqual(f.calls.slice(1).map(call => call.body), [{ pageNo: 1 }, { pageNo: 2 }, { stationCodes: 'P1' }, { stationCodes: 'P1' }, { devTypeId: 38, devIds: '1' }, { stationCodes: 'P1', beginTime: 0, endTime: f.now, language: 'en_US' }]);
   assert.ok(f.calls.every(call => call.method === 'POST'));
   f.client.close(); assert.equal(f.calls.length, 7, 'close never logs out or invalidates shared session');
 });

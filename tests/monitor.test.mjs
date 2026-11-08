@@ -75,9 +75,9 @@ test('metric units follow device type rather than a key-only guess', () => {
 
 test('state decoding preserves the original code and explicitly labels unknown states', () => {
   assert.deepEqual(withStateLabels({ inverter_state: 512, run_state: 1 }), {
-    inverter_state: 512, run_state: 1, inverter_state_text: 'Praca z siecią', run_state_text: 'Połączone'
+    inverter_state: 512, run_state: 1, inverter_state_text: 'Grid connected', run_state_text: 'Connected'
   });
-  assert.equal(withStateLabels({ inverter_state: 999 }).inverter_state_text, 'Nieznany stan: 999');
+  assert.equal(withStateLabels({ inverter_state: 999 }).inverter_state_text, 'Unknown state: 999');
 });
 
 test('HomeKit strings use UTF-8 byte limits without breaking Unicode', () => {
@@ -185,8 +185,8 @@ test('a failed meter source does not replace its readings with zero or break the
   await h.platform.pollOnce();
   const meter = h.registered.find((a) => a.context.typeId === 47);
   const inverter = h.registered.find((a) => a.context.typeId === 38);
-  const meterPower = meter.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Moc czynna [W]');
-  const inverterPower = inverter.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Moc czynna [kW]');
+  const meterPower = meter.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Active power [W]');
+  const inverterPower = inverter.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Active power [kW]');
   await assert.rejects(meterPower.handleGetRequest());
   assert.equal(await inverterPower.handleGetRequest(), 3.9);
   assert.ok(h.entries.some((entry) => entry.includes('permission (401)')));
@@ -203,8 +203,8 @@ test('active alarms are counted by severity and failure never reports a healthy 
   const h = harness(HomebridgeAPI, {}, { client, now: () => now });
   await h.platform.pollOnce();
   const alarmAccessory = h.registered.find((a) => a.context.kind === 'alarms');
-  const count = alarmAccessory.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Liczba aktywnych alarmów');
-  const name = alarmAccessory.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Alarm 1 - nazwa');
+  const count = alarmAccessory.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Active alarms');
+  const name = alarmAccessory.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Alarm 1 - name');
   assert.equal(await count.handleGetRequest(), 1);
   assert.equal(await name.handleGetRequest(), 'Alarm testowy');
   fail = true;

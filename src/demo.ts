@@ -3,13 +3,13 @@ import type { Alarm, Device, FusionSolarApi, KpiRecord, Plant } from './contract
 /** Synthetic data only. Demo mode never constructs the cloud client. */
 export class DemoApi implements FusionSolarApi {
   listPlants(): Promise<readonly Plant[]> {
-    return Promise.resolve([{ code: 'DEMO', name: 'Symulacja Huawei', capacityKwP: 10 }]);
+    return Promise.resolve([{ code: 'DEMO', name: 'Huawei Demo', capacityKwP: 10 }]);
   }
 
   listDevices(): Promise<readonly Device[]> {
     return Promise.resolve([
-      { id: '1001', stationCode: 'DEMO', name: 'Symulacja falownika', typeId: 38, serial: 'DEMO-INVERTER', model: 'SUN2000-10KTL-M1-HC DEMO', softwareVersion: 'demo' },
-      { id: '1002', stationCode: 'DEMO', name: 'Symulacja licznika', typeId: 47, serial: 'DEMO-METER', model: 'Power sensor DEMO', softwareVersion: 'demo' }
+      { id: '1001', stationCode: 'DEMO', name: 'Demo inverter', typeId: 38, serial: 'DEMO-INVERTER', model: 'SUN2000-10KTL-M1-HC DEMO', softwareVersion: 'demo' },
+      { id: '1002', stationCode: 'DEMO', name: 'Demo meter', typeId: 47, serial: 'DEMO-METER', model: 'Power sensor DEMO', softwareVersion: 'demo' }
     ]);
   }
 

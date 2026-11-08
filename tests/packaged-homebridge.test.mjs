@@ -46,7 +46,7 @@ test('installable archive loads in real Homebridge 1/2, publishes precise read-o
       await writeFile(join(storage, 'config.json'), JSON.stringify({
         bridge: { name: `Huawei test ${version}`, username: version.startsWith('1') ? '0E:AA:BB:CC:11:42' : '0E:AA:BB:CC:22:42', port, pin, bind: ['127.0.0.1'], advertiser: 'ciao' },
         plugins: ['homebridge-huawei-fusionsolar-monitor'],
-        platforms: [{ platform: 'HuaweiFusionSolarMonitor', demo: true, writeSnapshot: true }],
+        platforms: [{ platform: 'HuaweiFusionSolarMonitor', demo: true, writeSnapshot: true, gridPowerDirection: 'positiveImport', gridMeterId: '1002' }],
         accessories: []
       }));
       let previousIds;
@@ -63,7 +63,7 @@ test('installable archive loads in real Homebridge 1/2, publishes precise read-o
           try {
             const response = await fetch(`http://127.0.0.1:${port}/accessories`, { headers: { authorization: pin }, signal: AbortSignal.timeout(500) });
             const current = await response.json();
-            if (response.ok && current.accessories?.length === 5 && logs.includes('Wykryto instalacje: 1; urządzenia: 2')) {
+            if (response.ok && current.accessories?.length === 5 && logs.includes('Discovered plants: 1; devices: 2')) {
               payload = current;
               break;
             }
@@ -71,31 +71,44 @@ test('installable archive loads in real Homebridge 1/2, publishes precise read-o
           await sleep(100);
         }
         assert.ok(payload, `Homebridge ${version} did not publish telemetry: ${logs}`);
-        assert.match(logs, /Tryb DEMO/);
-        assert.ok(!/Cannot add a Service|plugin threw|Unhandled|Nieprawidłowe|Odczyt danych:|characteristic.*warning/iu.test(logs), logs);
+        assert.match(logs, /DEMO mode/);
+        assert.ok(!/Cannot add a Service|plugin threw|Unhandled|Invalid|Data polling:|characteristic.*warning/iu.test(logs), logs);
         const readings = payload.accessories.flatMap((accessory) => accessory.services.flatMap((service) => service.characteristics.map((characteristic) => ({ aid: accessory.aid, ...characteristic }))));
-        const power = readings.find((reading) => reading.description === 'Moc czynna [kW]');
-        const meter = readings.find((reading) => reading.description === 'Moc czynna [W]');
-        const daily = readings.find((reading) => reading.description === 'Produkcja dzisiaj [kWh]');
+        const power = readings.find((reading) => reading.description === 'Active power [kW]');
+        const meter = readings.find((reading) => reading.description === 'Active power [W]');
+        const daily = readings.find((reading) => reading.description === 'Production today [kWh]');
         assert.ok(power, `No inverter power in real HAP response: ${JSON.stringify(payload)}`);
         assert.equal(power.value, 3.9);
         assert.equal(meter.value, -1100);
         assert.equal(daily.value, 18.4);
         assert.ok(!power.perms.includes('pw'));
-        const ids = { aid: power.aid, iid: power.iid };
+        const productionMeter = readings.find((r) => r.description === 'PV Production [W]');
+        const homeMeter = readings.find((r) => r.description === 'Home Consumption [W]');
+        const gridMeter = readings.find((r) => r.description === 'Grid Power [W]');
+        const importMeter = readings.find((r) => r.description === 'Grid Import [W]');
+        const exportMeter = readings.find((r) => r.description === 'Grid Export [W]');
+        for (const [reading, expected] of [[productionMeter, 3900], [homeMeter, 2800], [gridMeter, -1100], [importMeter, 0], [exportMeter, 1100]]) {
+          assert.ok(reading, 'electrical meter is present in the actual HAP response');
+          assert.equal(reading.type.toUpperCase(), 'E863F10D-079E-48FF-8F27-9C2605A29F52');
+          assert.equal(reading.value, expected);
+          assert.equal(reading.unit, 'W');
+          assert.ok(!reading.perms.includes('pw'));
+        }
+        const ids = [power, productionMeter, homeMeter, gridMeter, importMeter, exportMeter].map((r) => ({ aid: r.aid, iid: r.iid }));
         if (previousIds) assert.deepEqual(ids, previousIds, 'pairing/automation identifiers remain stable after restart');
         previousIds = ids;
         const write = await fetch(`http://127.0.0.1:${port}/characteristics`, {
           method: 'PUT', headers: { authorization: pin, 'content-type': 'application/hap+json' },
-          body: JSON.stringify({ characteristics: [{ aid: power.aid, iid: power.iid, value: 0 }] })
+          body: JSON.stringify({ characteristics: [power, productionMeter, homeMeter].map((r) => ({ aid: r.aid, iid: r.iid, value: 0 })) })
         });
         assert.equal(write.status, 207);
-        assert.equal((await write.json()).characteristics[0].status, -70404, 'HomeKit rejects write to a read-only KPI');
+        assert.ok((await write.json()).characteristics.every((r) => r.status === -70404), 'HomeKit rejects writes to KPIs and power meters');
         const snapshots = await readdir(join(storage, 'huawei-fusionsolar-monitor'));
         assert.equal(snapshots.length, 1);
         const snapshot = JSON.parse(await readFile(join(storage, 'huawei-fusionsolar-monitor', snapshots[0]), 'utf8'));
         assert.equal(snapshot.demo, true);
         assert.equal(snapshot.sources['devices-38'].data[0].values.active_power, 3.9);
+        assert.equal(snapshot.sources['power-DEMO'].data.homeConsumptionW, 2800);
         child.kill('SIGTERM');
         await exited;
         // HB1 retains a 5s exit(143) fallback; HB2 unrefs it and cleanly exits(0).

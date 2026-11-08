@@ -1,137 +1,148 @@
-# Huawei FusionSolar Monitor dla Homebridge
+# Huawei FusionSolar Monitor for Homebridge
 
-Plugin udostępnia odczyty z chmury Huawei FusionSolar przez HomeKit. Wersja 0.1.1 jest przeznaczona przede wszystkim do domowego falownika SUN2000 i licznika energii. Nie wymaga magazynu energii. Niczego nie włącza, nie wyłącza ani nie zmienia ustawień instalacji.
+Read-only Huawei FusionSolar cloud telemetry for HomeKit, primarily for domestic SUN2000 inverters and power meters. A battery is not required. The plugin never switches equipment or changes plant settings.
 
-Pełny zestaw pomiarów jest przeznaczony do **Controller for HomeKit**. Eve nie jest wymagana. Apple Dom pokazuje standardowe czujniki, ale nie zapewnia pełnego widoku dowolnych pomiarów elektrycznych. Wygląd i obsługę własnych charakterystyk trzeba sprawdzić w używanej wersji Controller na telefonie; nie są one osobnym ekranem graficznym dodawanym do Apple Dom.
+The full measurement set is intended for **Controller for HomeKit**; Eve is not required. Apple Home shows selected standard sensors. Custom characteristics are not a separate graphical dashboard in Apple Home. Check their presentation and automation support in your installed Controller/iOS version.
 
-## Wymagania
+## Requirements
 
-- Działający Homebridge 1.11.4 lub 2.x. Lokalne testy obejmują dokładnie 1.11.4 i 2.5.0.
-- Node.js 22.12+, 24.x albo 26.x zgodnie z wymaganiami swojej wersji Homebridge. Do Homebridge 1 użyj Node 22/24; Homebridge 1.11.4 nie deklaruje obsługi Node 26.
-- Osobny login i hasło **Northbound/OpenAPI**, z uprawnieniami Basic APIs i przypisaną instalacją. Login aplikacji FusionSolar nie wystarcza.
-- Właściwy adres regionalnego serwera FusionSolar. Przykład `eu5` poniżej nie oznacza, że Twoje konto znajduje się właśnie tam.
-- Dostęp serwera Homebridge do Internetu po HTTPS. To integracja chmurowa, nie lokalny Modbus.
+- Homebridge 1.11.4 or 2.x; local compatibility tests cover exactly 1.11.4 and 2.5.0.
+- Node.js 22.12+, 24.x or 26.x as supported by your Homebridge version. Use Node 22/24 with Homebridge 1; 1.11.4 does not declare Node 26 support.
+- A separate **Northbound/OpenAPI** account with Basic APIs permission and assigned plants. A normal FusionSolar app login is insufficient.
+- Your account's regional FusionSolar HTTPS server. The `eu5` example is not automatic region selection.
+- Internet access from Homebridge. This is a cloud integration, not local Modbus.
 
-## Automatyczne wydania
+## Automated releases
 
-Każdy push na `main` uruchamia [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml). Akcja instaluje zależności z pliku blokady, sprawdza typy i lint, buduje projekt, uruchamia wszystkie testy i audyt zależności. Po powodzeniu publikuje [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) z gotowym plikiem `.tgz` i `SHA256SUMS`. Widoczność wydań wynika z ustawień repozytorium; workflow nie zmienia jego widoczności.
+Every push to `main` runs [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml): locked dependency installation, type checking, lint, build, all tests and dependency audit. A successful run publishes a [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) containing a ready-to-install `.tgz` and `SHA256SUMS`. Repository settings determine release visibility; the workflow does not change it.
 
-Pierwsze wydanie korzysta z wersji bazowej `package.json` (obecnie `0.1.1`). Następne automatycznie zwiększają numer patch względem najwyższego stabilnego tagu, np. `0.1.2`, `0.1.3`. Podniesienie wersji bazowej w źródłach pozwala rozpocząć nową serię minor/major. Wersja paczki jest ustawiana tylko w środowisku budowania; akcja nie dopisuje commitów z numerami wersji do `main`.
+The first release uses the source `package.json` baseline (currently `0.1.1`). Subsequent releases increment the highest stable patch tag, for example `0.1.2`, `0.1.3`. Raising the source baseline starts a new minor/major series. Package versions are assigned only during the build; no version commits are added to `main`.
 
-Tag wskazuje dokładny sprawdzony commit. Ponowienie akcji dla tego samego commitu używa tego samego numeru i weryfikuje już opublikowane pliki, zamiast je nadpisywać. Publikacja odbywa się po przesłaniu kompletnej paczki i sumy kontrolnej; po nieudanej próbie może pozostać tag lub szkic wydania, który następne uruchomienie może dokończyć. Kolejka przetwarza wydania pojedynczo i mieści do 100 oczekujących uruchomień zgodnie z limitem GitHub Actions.
+Tags identify the exact verified commit. Rerunning the same commit reuses its version and checks published files rather than overwriting them. Publication follows complete asset upload; a failed attempt may leave a tag or draft that a retry can finish. Releases run sequentially, with up to 100 queued runs under GitHub Actions limits.
 
-Akcję można też uruchomić ręcznie przez **Actions → Build and release → Run workflow** na `main`. Korzysta z wbudowanego `GITHUB_TOKEN`; dodatkowe sekrety nie są wymagane. Etap testów ma uprawnienia tylko do odczytu repozytorium, a prawo publikacji otrzymuje osobny etap pracujący na gotowej paczce.
+Manual execution is available under **Actions → Build and release → Run workflow** on `main`. The built-in `GITHUB_TOKEN` is sufficient. Tests have read-only repository permission; a separate publication job operates on the completed package.
 
-## Instalacja z gotowej paczki (zalecana)
+## Install a release package (recommended)
 
-Pobierz paczkę `.tgz` z [najnowszego wydania](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases/latest), przenieś ją na urządzenie Homebridge i w terminalu jego środowiska wykonaj polecenie z nazwą pobranego pliku, na przykład:
+Download the `.tgz` from the [latest release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases/latest), transfer it to the Homebridge device, and run in its environment:
 
 ```sh
-npm install -g /pełna/ścieżka/homebridge-huawei-fusionsolar-monitor-0.1.1.tgz
+npm install -g /full/path/homebridge-huawei-fusionsolar-monitor-0.1.1.tgz
 ```
 
-Gotowa paczka zawiera pliki startowe i nie wymaga budowania kodu na Raspberry Pi. Opcja `-g` instaluje ją globalnie, w miejscu przeszukiwanym przez standardową instalację Homebridge. Używaj tego samego środowiska Node/npm i sposobu instalowania co dla pozostałych pluginów. Jeśli usługa działa z własnym katalogiem pluginów, zainstaluj paczkę do tego katalogu zgodnie z konfiguracją swojej usługi.
+The archive includes compiled runtime files and needs no build tools on Raspberry Pi. `-g` installs into the location searched by a standard global Homebridge installation. Use the same Node/npm environment and installation method as your other plugins. For a service with a custom plugin directory, install there according to that service's configuration.
 
-Jeśli wcześniej zainstalowałeś wersję 0.1.0 lokalnie z GitHuba, usuń tę kopię, wykonując w **tym samym katalogu, w którym była instalowana**:
+If you previously installed 0.1.0 locally from GitHub, run this **in the same directory used for that installation**:
 
 ```sh
 npm uninstall homebridge-huawei-fusionsolar-monitor
 ```
 
-Następnie zainstaluj gotową paczkę i zrestartuj Homebridge w jego panelu. Nie trzeba usuwać konfiguracji Huawei ani parowania akcesoriów.
+Install the release archive and restart Homebridge in its dashboard. Keep the Huawei configuration and accessory pairing.
 
-### Alternatywa: instalacja lokalna ze źródeł GitHuba
+### Alternative: local installation from GitHub sources
 
-Jeśli repozytorium jest prywatne, Git na urządzeniu Homebridge musi mieć uprawnienia do jego odczytu. Tej metody używaj w katalogu projektu, którego `node_modules` jest skonfigurowanym katalogiem pluginów Twojej usługi Homebridge:
+For a private repository, Git on the Homebridge device needs read access. Run in the project directory whose `node_modules` is configured as your service's plugin directory:
 
 ```sh
 npm install github:Buslowicz/homebridge-huawei-fusionsolar-monitor
 ```
 
-Samo uruchomienie tego polecenia w dowolnym katalogu domowym nie sprawi, że Homebridge odnajdzie plugin. Jeśli nie znasz katalogu pluginów swojej usługi, użyj gotowej paczki i standardowej instalacji globalnej opisanej powyżej.
+Installing in an arbitrary home directory does not make Homebridge discover it. If you do not know the service's plugin directory, use the global release archive installation above.
 
-Wersja 0.1.1 dodaje automatyczne budowanie przez skrypt `prepare` przy instalacji z GitHuba. Nie używaj `--ignore-scripts` dla instalacji ze źródeł: repozytorium nie przechowuje katalogu `dist`, a ten skrypt tworzy plik startowy pluginu. Narzędzia budowania są instalowane tymczasowo; końcowy plugin nie zawiera kopii Homebridge ani zależności deweloperskich.
+Version 0.1.1 adds automatic compilation with `prepare` for Git installs. Do not use `--ignore-scripts`: the repository does not store `dist`, and this script creates the entry point. Build tools are temporary; the runtime installation contains no copy of Homebridge or development dependencies.
 
-Nie zalecamy `npm install -g github:...`: podczas testów npm 11.6.2 i 11.16.0 przekazywał tryb globalny do przygotowania zależności Git, zostawiając link do usuwanego katalogu tymczasowego. Dla instalacji globalnej użyj gotowego pliku `.tgz`. To ograniczenie dotyczy ścieżki instalowania z Git, nie działania pluginu po poprawnej instalacji.
+Global `npm install -g github:...` is not recommended: tests with npm 11.6.2 and 11.16.0 found global mode forwarded into Git dependency preparation, leaving a link to a deleted temporary directory. Use `.tgz` for global installs. This affects Git installation, not operation after correct installation.
 
-W Dockerze plik i polecenie muszą znajdować się w kontenerze Homebridge albo w jego dostępnym wolumenie. Plugin instaluj tym samym sposobem i w tym samym środowisku co pozostałe pluginy swojej instalacji. Nie trzeba instalować narzędzi programistycznych ani zależności do testów.
+In Docker, the archive and command must be inside the Homebridge container or an accessible volume. Use the same environment and method as other plugins; development/test dependencies are unnecessary.
 
-W konfiguracji pluginu w Homebridge uzupełnij serwer, login i hasło API, zapisz ustawienia i uruchom Homebridge ponownie. Zalecane jest uruchomienie jako osobny Child Bridge. Jeśli użyjesz Child Bridge, dodaj go do Apple Dom zgodnie z instrukcjami Homebridge.
+Enter the API server and credentials in Homebridge, save, and restart. A separate Child Bridge is recommended; pair it with Apple Home using Homebridge's instructions.
 
-Przykładowy wpis do tablicy `platforms` w `config.json`:
+Example `platforms` entry in `config.json`:
 
 ```json
 {
   "platform": "HuaweiFusionSolarMonitor",
   "name": "Huawei FusionSolar",
   "baseUrl": "https://eu5.fusionsolar.huawei.com",
-  "username": "TWOJ_LOGIN_NORTHBOUND",
-  "password": "UZUPELNIJ_LOKALNIE",
+  "username": "YOUR_NORTHBOUND_LOGIN",
+  "password": "ENTER_LOCALLY",
   "pollIntervalSeconds": 300,
   "alarms": true,
   "statusSensors": true,
+  "powerMeters": true,
+  "gridPowerDirection": "unconfigured",
   "writeSnapshot": true
 }
 ```
 
-Hasło wpisane w interfejsie Homebridge jest przechowywane w jego pliku konfiguracji. Alternatywnie pomiń `username` i `password`, a ustaw `FUSIONSOLAR_USERNAME` i `FUSIONSOLAR_PASSWORD` w środowisku **usługi Homebridge**. Zmienne ustawione tylko w osobnym terminalu nie muszą być widoczne dla usługi. Nie przesyłaj tych danych w czacie ani nie umieszczaj w zgłoszeniach błędów.
+Homebridge stores UI-entered credentials in its configuration file. Alternatively omit `username` and `password`, and set `FUSIONSOLAR_USERNAME` and `FUSIONSOLAR_PASSWORD` in the **Homebridge service** environment. Variables in a separate terminal may not reach the service. Never share credentials in chats or issue reports.
 
-## Co zobaczysz
+## Measurements
 
-Plugin wykrywa instalacje i urządzenia przypisane do konta. Tworzy akcesorium instalacji, akcesorium falownika, akcesorium licznika oraz opcjonalne akcesorium aktywnych alarmów. Każde akcesorium ma grupy `Huawei pomiary 1` itd. Grupowanie jest technicznym podziałem HomeKit; numery grup nie są numerami faz ani paneli.
+The plugin discovers assigned plants/devices and creates plant, inverter, meter and optional active-alarm accessories. Custom metrics appear in `Huawei metrics 1` and subsequent groups. Group numbers are HomeKit subdivisions, not phase or panel numbers. In Controller, open accessory details and characteristics; aliases may be needed in some app versions. Labels include units, for example `Active power [kW]` and `Voltage phase A [V]`. Missing values produce read errors/unavailability rather than invented zero readings.
 
-W Controller for HomeKit otwórz szczegóły akcesorium i jego charakterystyki. Własne charakterystyki można nazwać i wykorzystać w automatyzacjach zgodnie z możliwościami aplikacji. Opisy zawierają jednostki, np. `Moc czynna [kW]`, `Napięcie fazy A [V]`. Niektóre wersje aplikacji mogą wymagać nadania własnego aliasu charakterystyce. Brak danych w HomeKit jest sygnalizowany jako błąd odczytu/niedostępność, a nie jako pomiar równy zero.
-
-| Źródło | Udostępniane dane, jeśli Huawei je zwraca |
+| Source | Available data when returned by Huawei |
 | --- | --- |
-| Instalacja | Produkcja dzienna, miesięczna i całkowita; dzienne zużycie; energia oddana do sieci; przychody; stan instalacji |
-| SUN2000, typ 38 lub 1 | Moc AC/DC i bierna, napięcia/prądy faz i wejść PV, częstotliwość, sprawność, temperatura wewnętrzna, energia dzienna/całkowita i MPPT, stan i czasy uruchomienia/wyłączenia |
-| Licznik, typ 17 lub 47 | Moc sumaryczna i fazowa, napięcia i prądy, współczynnik mocy, liczniki energii dodatniej/ujemnej oraz pozostałe dostępne KPI |
-| Alarmy | Liczba alarmów, liczby według ważności oraz nazwy, kody, czas, przyczyny i zalecenia dla maksymalnie 20 bieżących alarmów w HomeKit |
-| Pozostałe obsługiwane typy | Wszystkie skalarne KPI zwrócone przez API: EMI 10, bateria 39, ESS 41, SmartAssistant 23070; bez zapewnienia opisów/jednostek dla wszystkich ich pól |
+| Plant | Daily/monthly/total production, daily consumption, exported energy, income, health |
+| SUN2000 type 38 or 1 | AC/DC/reactive power, phase/PV voltages and currents, frequency, efficiency, internal temperature, daily/total/MPPT energy, states and start/stop times |
+| Meter type 17 or 47 | Total/phase power, voltages/currents, power factor, positive/negative energy counters and other KPIs |
+| Alarms | Count, severity counts, names, IDs, times, causes and suggestions for up to 20 current alarms in HomeKit |
+| Other supported types | Scalar API KPIs for EMI 10, battery 39, ESS 41 and SmartAssistant 23070; not every field has a known label/unit |
 
-Nowe nieznane skalarne pola API również są udostępniane pod nazwą opartą na oryginalnym kluczu. Ich jednostki nie są zgadywane. Nie wszystkie pola dokumentacji muszą być obsługiwane przez model lub firmware urządzenia. `null`, puste wartości i `N/A` nie są udostępniane jako fikcyjne zera. Fizycznie nieistniejące wejścia PV mogą być pominięte przez Huawei albo zwracać zero; plugin zachowuje to rozróżnienie.
+Unknown scalar fields retain names based on API keys; units are never guessed. Firmware/model support varies. `null`, empty and `N/A` values remain unavailable. Physically absent PV inputs may be omitted or reported as zero by Huawei; that distinction is preserved. Inverter `active_power` is **kW**, while meter type 17/47 `active_power` is **W**. Original signed meter values are preserved. Positive/negative energy counters are not relabeled import/export without wiring confirmation. `day_use_energy` is Huawei's daily consumption; income currency is configured in FusionSolar, not assumed.
 
-Ważne: `active_power` falownika ma w tym API jednostkę **kW**, natomiast licznika typu 17/47 **W**. Znak mocy licznika jest zachowany. Plugin nie wylicza chwilowego zużycia domu z niepotwierdzonego kierunku licznika i nie zmienia nazw liczników energii dodatniej/ujemnej na import/eksport bez potwierdzenia sposobu podłączenia. Pole `day_use_energy` jest gotowym dziennym zużyciem udostępnianym przez Huawei. Waluta przychodów jest ustawiona w FusionSolar, nie zakłada się PLN.
+### Power services in existing accessories
 
-### Wybrane dane w Apple Dom
+With `powerMeters: true` (default), these services are added inside existing accessories:
 
-- Temperatura wewnętrzna falownika jako czujnik temperatury. To temperatura urządzenia, nie pomieszczenia.
-- Opcjonalny wirtualny czujnik kontaktowy `Produkcja PV Huawei`: stan otwarty oznacza dodatnią moc AC, zamknięty oznacza brak dodatniej mocy. To wskaźnik produkcji, nie sterowanie.
-- Opcjonalny wirtualny czujnik kontaktowy `Usterka instalacji Huawei`: otwarty oznacza zgłoszoną usterkę lub rozłączenie instalacji, zamknięty oznacza stan zdrowy według Huawei. Nie zastępuje listy alarmów.
+- **PV Production**: inverter AC active power converted from kW to W.
+- **Grid Power**: the meter's original signed active power in W, unchanged.
+- **Grid Import** and **Grid Export**: nonnegative W after explicitly configuring the sign convention.
+- **Home Consumption (plant)**: estimated W, calculated as the sum of all inverter AC power plus signed grid import. It is not a synchronized device measurement.
 
-Wszystkie te odczyty są tylko do odczytu. Automatyzacje zmieniające inne akcesoria domowe uruchamiasz na podstawie danych odczytanych przez plugin. Nie oznacza to sterowania samym falownikiem.
+`gridPowerDirection` defaults to `unconfigured`: no import/export direction or household consumption is guessed. Set `positiveImport` only if positive meter power means import; set `positiveExport` if positive means export. Configuring either value explicitly confirms that the selected meter measures the **grid connection**, rather than a subcircuit. Verify the direction against FusionSolar both at night/during import and during export before using derived readings in automations. This global setting applies to selected meters across all selected plants; select only compatible plants.
 
-## Odświeżanie, brak połączenia i alarmy
+When a plant has multiple meters, set optional `gridMeterId` to the exact device ID string, for example `"1002"`. It must be a signed decimal string of up to 128 characters; numbers, whitespace and empty strings are rejected. Omit it to select the plant's unique meter automatically. An explicit ID limits meter selection; an ambiguous or missing selection is unavailable.
 
-- Dane bieżące: co najmniej co 300 sekund od **zakończenia** poprzedniego cyklu. Wydłużenie jest możliwe do 3600 sekund. Huawei zbiera dane urządzeń minimum co 5 minut, więc plugin nie służy do automatyzacji wymagających reakcji w sekundach.
-- Aktywne alarmy: co 30 minut. Zapytanie obejmuje czas od epoki Unix do teraz, żeby nie zgubić starszego nadal aktywnego alarmu. Nie jest to historia alarmów skasowanych.
-- Lista instalacji i urządzeń: przy uruchomieniu, potem co 24 godziny. Po błędzie wykrywania ponowna próba następuje najwcześniej za godzinę. Zmiana uprawnień lub poprawienie konfiguracji może wymagać ponownego uruchomienia.
-- Sesja API jest współdzielona wewnątrz pluginu i używana do 30 minut. Nie ma osobnego logowania dla każdego pomiaru. Po błędnych danych logowania plugin odczekuje 30 minut.
-- Każda próba danego odczytu zużywa lokalny limit, także gdy zakończy się błędem. Kod 305/HTTP 401 unieważnia sesję; plugin może ją odnowić, ale odczyt czeka na następny dozwolony cykl. Kod API 401 oznacza brak uprawnień, nie potrzebę ciągłego ponawiania logowania.
-- Limity 407/429 i `Retry-After` wydłużają odstęp. Nie uruchamiaj kilku kopii ani innych integracji na tym samym koncie API bez uwzględnienia ich wspólnych limitów. Ograniczenia dzienne są zależne od zasobów konta; nie restartuj pluginu wielokrotnie w krótkim czasie.
-- Nieudany odczyt oznacza daną grupę jako niedostępną; pozostałe grupy mogą nadal działać. Po przekroczeniu wieku `2 × interwał + 60 sekund` dane bieżące przestają być dostępne. Dla alarmów próg to 61 minut. Po restarcie nie pokazuje się zapisanych wcześniej wartości jako aktualnych.
-- Jeśli Huawei jawnie zgłosi rozłączenie urządzenia/licznika, jego stare pomiary elektryczne przestają być dostępne w HomeKit; stan połączenia pozostaje widoczny. Plugin nie zna rzeczywistego czasu każdego pomiaru, jeśli Huawei go nie zwraca.
+Home Consumption is available only for plants without a battery, with all required sources connected and successfully read in the current polling cycle. Missing/failed data, ambiguous meters, disconnected sources and a negative derived result remain unavailable; no zero is inferred. Cloud measurements usually refresh about every five minutes and may not be synchronized. Setting `powerMeters: false` disables these added services and leaves the original metrics available. There is no fake switch.
 
-`Dane odebrano z API` oznacza czas otrzymania odpowiedzi przez plugin. Nie jest to potwierdzony czas wykonania pomiaru przez falownik.
+### Selected data in Apple Home
 
-## Pełny lokalny zestaw odczytów
+- Inverter internal temperature: device temperature, not room temperature.
+- Optional virtual `Huawei PV Production` contact sensor: open means positive AC production; closed means no positive power.
+- Optional virtual `Huawei Plant Fault` contact sensor: open means Huawei reports a fault/disconnection; closed means healthy. It does not replace the alarm list.
 
-Przy `writeSnapshot: true` aktualny plik JSON znajduje się w:
+All readings are read-only. Automations may control other home accessories based on readings; they do not control the inverter.
+
+## Refresh, connection loss and alarms
+
+- Current data: at least 300 seconds after the previous cycle **finishes**, configurable up to 3600 seconds. Huawei collects device data at intervals of at least five minutes; this is unsuitable for second-level reactions.
+- Active alarms: every 30 minutes, queried from Unix epoch to now to retain old still-active alarms. Cleared-alarm history is not retrieved. API alarm language is English (`en_US`).
+- Discovery: at startup, then every 24 hours. Failed discovery retries after at least one hour. Permission/configuration changes may require a restart.
+- A shared API session lasts up to 30 minutes. Invalid credentials cause a 30-minute cooldown.
+- Every attempted query reserves local quota, including failures. API 305/HTTP 401 invalidate the session; it may renew, but the query waits for its next allowed cycle. API 401 means permission failure, not repeated login.
+- 407/429 and `Retry-After` extend delays. Multiple integrations share account limits. Daily quotas depend on account resources; avoid repeated restarts.
+- A failed source becomes unavailable while other sources may continue. Current values expire after `2 × interval + 60 seconds`; alarms after 61 minutes. Saved values are not restored as current after restart.
+- Explicit device/meter disconnection makes its electrical values unavailable while connection state remains visible.
+
+`API received at` records response receipt, not a confirmed physical measurement timestamp.
+
+## Local snapshot
+
+With `writeSnapshot: true`, the latest JSON is stored at:
 
 ```text
-<folder danych Homebridge>/huawei-fusionsolar-monitor/<identyfikator>.json
+<Homebridge storage>/huawei-fusionsolar-monitor/<identifier>.json
 ```
 
-Plik zawiera metadane urządzeń, wszystkie zwrócone i zwalidowane KPI, pełne opisy wszystkich alarmów oraz czas i stan ostatniego odczytu każdego źródła. `available` oznacza powodzenie ostatniego odczytu danego API, a nie gwarancję, że fizyczne urządzenie jest online. Przy błędzie pozostają poprzednie dane z `available: false` i poprzednią datą odbioru.
+It includes device metadata, all validated KPIs, full alarm descriptions, and each source's last read time/status. `available` means the last API query succeeded, not guaranteed physical connectivity. A failed query retains previous values with `available: false` and their original receipt date.
 
-Hasło, token sesji, adres instalacji, geolokalizacja i dane kontaktowe konta nie są zapisywane. Nazwy instalacji, identyfikatory i numery seryjne pozostają danymi prywatnymi; sprawdź plik przed jego udostępnieniem. Katalog jest tworzony z uprawnieniami 700, pliki z 600. Plugin nie uruchamia dodatkowego serwera WWW. Plik zawiera tylko ostatni zestaw danych, nie wielomiesięczną historię.
+Passwords, session tokens, plant addresses/geolocation and account contacts are excluded. Plant names, IDs and serial numbers remain private: review before sharing. Directory permissions are 700 and file permissions 600. No additional web server runs. Only the latest snapshot is retained, not long-term history.
 
-HomeKit ogranicza długość tekstu; opisy alarmów w Controller są skracane do 256 bajtów UTF-8. Pełny opis (do limitu walidacji API) jest w pliku lokalnym. Maksymalnie 20 alarmów w HomeKit jest sortowanych według ważności, następnie od najnowszego. Ich numer oznacza pozycję na aktualnej liście, a nie stały identyfikator zdarzenia. Więcej alarmów pozostaje dostępnych w lokalnym zestawie.
+HomeKit alarm text is limited to 256 UTF-8 bytes; full validated descriptions remain in the snapshot. Up to 20 alarms are sorted by severity then newest first. Their numbers are positions in the current list, not stable event IDs. Additional alarms remain in the snapshot.
 
-## Tryb demonstracyjny
-
-Bez połączenia z Huawei można sprawdzić dodanie akcesoriów i wygląd pomiarów:
+## Demo
 
 ```json
 {
@@ -142,24 +153,25 @@ Bez połączenia z Huawei można sprawdzić dodanie akcesoriów i wygląd pomiar
 }
 ```
 
-Nazwy zawierają `Symulacja`, a log wyraźnie wskazuje tryb DEMO. Po przejściu na prawdziwe konto tworzone są inne akcesoria; akcesoria demo są usuwane po poprawnym wykryciu instalacji. Nie używaj danych demo do rzeczywistych automatyzacji.
+Demo names identify synthetic devices; no Huawei connection or credentials are used. The default direction remains `unconfigured`. To demonstrate derived power, add `"gridPowerDirection": "positiveImport"`: 3900 W PV plus -1100 W grid import gives 2800 W home consumption. Never use demo data for real automations. Switching to a real account creates different accessories; successful discovery removes demo accessories.
 
-## Rozwiązywanie problemów
+## Troubleshooting
 
-| Komunikat | Co sprawdzić |
+| Message | Check |
 | --- | --- |
-| `authentication`, 20400 | Osobne konto Northbound, hasło, blokada/ważność konta, właściwy serwer regionalny; nie ponawiaj prób wielokrotnie |
-| `permission (401)` | Uprawnienia Basic APIs i przypisanie konta do instalacji, ewentualnie uprawnienia konkretnego API alarmów |
-| `rate-limit`, 407/429 | Poczekaj; wyłącz inne kopie korzystające z tego samego konta lub użyj osobnego konta API |
-| `network` | Internet, DNS, certyfikat HTTPS i adres regionu; plugin nie wyłącza kontroli certyfikatów |
-| `invalid-response` | Nieoczekiwany format/typ/zakres danych, nieobsługiwany kod API albo niezgodna wersja platformy; sprawdź lokalny stan bez publikowania hasła i tokenu |
-| `No plugin was found for the platform "HuaweiFusionSolarMonitor"` | Homebridge nie załadował pluginu. Sprawdź wcześniejszy komunikat `ERROR LOADING PLUGIN`, użyj wersji co najmniej 0.1.1 dla instalacji z GitHuba i upewnij się, że plugin jest zainstalowany w katalogu przeszukiwanym przez usługę. `npm list -g --depth=0 homebridge-huawei-fusionsolar-monitor` sprawdza kopię globalną w bieżącym środowisku npm. |
-| Puste pola | Urządzenie może nie udostępniać danego KPI; sprawdź typ urządzenia, uprawnienia i to, czy dane istnieją w FusionSolar |
-| Brak W/kWh w Apple Dom | Użyj widoku charakterystyk w Controller for HomeKit; plugin nie może dowolnie zmienić interfejsu Apple Dom |
+| `authentication`, 20400 | Northbound credentials, lock/expiry, regional server; avoid repeated attempts |
+| `permission (401)` | Basic APIs, assigned plants and alarm API permissions |
+| `rate-limit`, 407/429 | Wait; stop duplicate integrations or use a separate API account |
+| `network` | Internet, DNS, HTTPS certificate, region; certificate validation remains enabled |
+| `invalid-response` | Unexpected types/ranges, unsupported API code/version; inspect local state without sharing credentials |
+| `No plugin was found for the platform "HuaweiFusionSolarMonitor"` | Earlier `ERROR LOADING PLUGIN`, version 0.1.1+ for Git installs and service plugin directory. `npm list -g --depth=0 homebridge-huawei-fusionsolar-monitor` checks the current npm environment's global copy. |
+| Empty values | Device KPI support, permissions and actual FusionSolar data |
+| Missing W/kWh in Apple Home | Use Controller characteristics; the plugin cannot redesign Apple Home |
+| Unavailable derived consumption | Confirm meter ID/sign, absence of batteries, all inverter/meter connectivity and current-cycle data |
 
-Jeżeli konto obejmuje wiele instalacji, dodaj opcjonalne `stationCodes: ["NE=..."]`. Użyj identyfikatorów zwróconych przez API, ponieważ mogą różnić się od identyfikatora w interfejsie FusionSolar. Maksymalny zakres tej wersji to 100 wybranych instalacji, 100 urządzeń każdego typu i 1000 instalacji na etapie listowania konta (10 stron). To plugin domowy; nie integracja do masowego zarządzania farmami.
+For multiple plants, optionally set `stationCodes: ["NE=..."]` using API IDs, which may differ from UI IDs. Limits: 100 selected plants, 100 devices per type and 1000 account plants during discovery (10 pages). This is a domestic integration, not fleet management.
 
-## Budowanie i weryfikacja źródeł
+## Build and verification
 
 ```sh
 npm ci
@@ -168,16 +180,12 @@ npm audit
 npm pack
 ```
 
-Testy API uruchamiają prawdziwy lokalny serwer HTTPS z osobnym certyfikatem testowym. Klucz w `tests/fixtures` dotyczy wyłącznie localhost i nie jest pakowany do pluginu. Testy Homebridge uruchamiają odizolowany bridge demonstracyjny, używają wyłącznie lokalnych portów i nie kontaktują się z Huawei. W niektórych środowiskach wymagane jest zezwolenie na lokalne nasłuchiwanie.
+API tests run a real local HTTPS server with a localhost-only fixture key/certificate, excluded from packages. Homebridge tests run isolated local demo bridges without Huawei access. Local listening permission may be required.
 
-Testy instalacji wymagają Git i npm: sprawdzają rzeczywistą lokalną zależność Git oraz globalną instalację gotowej paczki. Używają pamięci npm wskazanej przez `FUSIONSOLAR_TEST_NPM_CACHE` albo `npm_config_cache`; przy pustej pamięci potrzebny jest dostęp do rejestru npm. Wyniki i ograniczenie globalnej instalacji Git opisano w [raporcie poprawki 0.1.1](docs/installation-fix.md).
+Installation tests require Git/npm and exercise a real local Git dependency and global archive install. They use `FUSIONSOLAR_TEST_NPM_CACHE` or `npm_config_cache`; an empty cache needs npm registry access. See the historical [0.1.1 installation report](docs/installation-fix.md).
 
-Plugin nie ma zależności wykonawczych npm. Narzędzia TypeScript/ESLint i dwie wersje Homebridge są zależnościami wyłącznie do budowania/testów. Nadpisanie `minimatch` do 11.0.3 usuwa zgłoszoną podatność narzędzi deweloperskich; działanie narzędzi jest objęte weryfikacją.
+There are no runtime npm dependencies. TypeScript/ESLint and two Homebridge versions are build/test dependencies only. The `minimatch` 11.0.3 override addresses a development-tool vulnerability; tool behavior is covered by verification.
 
-## Podstawa i ograniczenia weryfikacji
+Contracts use the supplied **SmartPVMS 26.1.0 NBI Reference, Issue 01, 2026-03-30**, sections 3.2, 4.2, 5.1.1–5.1.3 and 6.1. The Huawei document is not distributed. HomeKit references: [Homebridge template](https://github.com/homebridge/homebridge-plugin-template), [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS), [Controller custom characteristics](https://controllerforhomekit.wordpress.com/features/vendor-characteristics/).
 
-Kontrakty opracowano na podstawie dostarczonego dokumentu **SmartPVMS 26.1.0 NBI Reference, Issue 01, 2026-03-30**: rozdziały 3.2 (konto API), 4.2 (limity), 5.1.1 (wykrywanie), 5.1.2 (KPI), 5.1.3 (aktywne alarmy), 6.1 (błędy). Dokument Huawei nie jest rozpowszechniany w paczce.
-
-Oficjalne źródła implementacji HomeKit: [szablon Homebridge](https://github.com/homebridge/homebridge-plugin-template), [HAP-NodeJS](https://github.com/homebridge/HAP-NodeJS), [obsługa własnych charakterystyk w Controller](https://controllerforhomekit.wordpress.com/features/vendor-characteristics/).
-
-Testy lokalne i demonstracja nie potwierdzają jeszcze poprawnej odpowiedzi Twojego konta Huawei, zgodności firmware konkretnego SUN2000-10KTL-M1-HC ani wyglądu danych w Twojej wersji Controller/iOS. Te trzy rzeczy wymagają sprawdzenia po instalacji. Nie zaimplementowano sterowania, OAuth, Modbus ani pobierania historycznych szeregów czasowych. Dzienne/miesięczne/całkowite liczniki obejmują to, co zwraca bieżące API; nie jest to kopia całej funkcjonalności aplikacji FusionSolar.
+Local tests do not verify your real Huawei account, specific SUN2000-10KTL-M1-HC firmware or physical Controller/iOS presentation. Check these after installation, including meter direction. Native Controller/Apple Home AXE/VoiceOver and whole-application WCAG audits have not been performed. No control, OAuth, Modbus or historical time-series retrieval is implemented; current counters do not reproduce all FusionSolar functionality. Historical reports describe their original tested packages, not automatic verification of later source changes.

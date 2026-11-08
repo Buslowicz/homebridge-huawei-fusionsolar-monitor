@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { API, Characteristic, CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import type { MetricMap, MetricValue } from './contracts.js';
 import { describeMetric, withStateLabels } from './metrics.js';
+import { PowerMeters } from './power-meter.js';
+import type { PowerMeterOptions } from './power-meter.js';
 
 type Accessory = PlatformAccessory<Record<string, unknown>>;
 export const METRIC_SERVICE_SEED = 'huawei-fusionsolar-monitor:metrics:v1';
@@ -32,6 +34,7 @@ export class TelemetryAccessory {
   private readonly metricChars = new Set<Characteristic>();
   private readonly contactServices = new Map<string, Service>();
   private readonly temperatureService: Service | undefined;
+  private readonly powerMeters: PowerMeters;
 
   constructor(
     readonly accessory: Accessory,
@@ -39,12 +42,18 @@ export class TelemetryAccessory {
     private readonly typeId: number | 'plant',
     private readonly maxAgeMs: number,
     statusSensors: boolean,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    powerOptions?: PowerMeterOptions
   ) {
     const hap = api.hap;
+    this.powerMeters = new PowerMeters(accessory, api, typeId, maxAgeMs, now, powerOptions);
     this.serviceUuid = hap.uuid.generate(METRIC_SERVICE_SEED);
     for (const service of accessory.services) {
       if (service.UUID === this.serviceUuid) {
+        const bucket = /^metrics-(\d+)$/u.exec(service.subtype ?? '');
+        if (bucket) {
+          this.nameService(service, `Huawei metrics ${Number(bucket[1]) + 1}`);
+        }
         for (const characteristic of service.characteristics) {
           if (![hap.Characteristic.Name.UUID, hap.Characteristic.StatusFault.UUID].includes(characteristic.UUID)) {
             characteristic.onGet(() => this.read(characteristic.UUID));
@@ -56,14 +65,18 @@ export class TelemetryAccessory {
       }
     }
     if (statusSensors && typeId === 'plant') {
-      this.addContact('health', 'Usterka instalacji Huawei');
+      this.addContact('health', 'Huawei Plant Fault');
     }
     if (statusSensors && (typeId === 1 || typeId === 38)) {
-      this.addContact('production', 'Produkcja PV Huawei');
+      this.addContact('production', 'Huawei PV Production');
     }
     // Restored sensors remain unavailable until data is received, even after a restart.
     for (const service of accessory.services) {
       if (service.UUID === hap.Service.ContactSensor.UUID && service.subtype) {
+        const label = service.subtype === 'health' ? 'Huawei Plant Fault' : service.subtype === 'production' ? 'Huawei PV Production' : undefined;
+        if (label) {
+          this.nameService(service, label);
+        }
         this.contactServices.set(service.subtype, service);
         this.bindContact(service, service.subtype);
       }
@@ -76,7 +89,8 @@ export class TelemetryAccessory {
     }
     if (typeof typeId === 'number' && [1, 38].includes(typeId)) {
       this.temperatureService = accessory.getService(hap.Service.TemperatureSensor)
-        ?? accessory.addService(hap.Service.TemperatureSensor, 'Temperatura falownika Huawei', 'temperature');
+        ?? accessory.addService(hap.Service.TemperatureSensor, 'Huawei Inverter Temperature', 'temperature');
+      this.nameService(this.temperatureService, 'Huawei Inverter Temperature');
       this.temperatureService.getCharacteristic(hap.Characteristic.CurrentTemperature)
         .setProps({ minValue: -100, maxValue: 200, minStep: null })
         .onGet(() => {
@@ -93,6 +107,15 @@ export class TelemetryAccessory {
 
   private error(): Error {
     return new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+  }
+
+  private nameService(service: Service, label: string): void {
+    service.displayName = label;
+    service.setCharacteristic(this.api.hap.Characteristic.Name, label);
+  }
+
+  updateHomeConsumption(value: number | undefined, receivedAt: number): void {
+    this.powerMeters.updateHome(value, receivedAt);
   }
 
   private read(uuid: string): CharacteristicValue {
@@ -121,6 +144,7 @@ export class TelemetryAccessory {
   }
 
   update(metrics: MetricMap, receivedAt: number): void {
+    this.powerMeters.update(metrics, receivedAt);
     const expanded = withStateLabels(metrics);
     const disconnected = expanded.run_state === 0 || expanded.meter_status === 0
       || (this.typeId === 'plant' && expanded.real_health_state === 1);
@@ -187,16 +211,16 @@ export class TelemetryAccessory {
     // Homebridge's string overload matches a service NAME, not its UUID.
     let service = this.accessory.services.find((candidate) => candidate.UUID === this.serviceUuid && candidate.subtype === subtype);
     if (!service) {
-      service = new hap.Service(`Huawei pomiary ${bucket + 1}`, this.serviceUuid, subtype);
+      service = new hap.Service(`Huawei metrics ${bucket + 1}`, this.serviceUuid, subtype);
       this.accessory.addService(service);
       service.addCharacteristic(hap.Characteristic.StatusFault);
     }
     let characteristic = service.characteristics.find((candidate) => candidate.UUID === uuid);
+    const label = `${description.label}${description.unit ? ` [${description.unit}]` : ''}`;
     if (!characteristic) {
       if (service.characteristics.length >= 90) {
         throw new Error('Too many metric characteristics in a HomeKit service.');
       }
-      const label = `${description.label}${description.unit ? ` [${description.unit}]` : ''}`;
       characteristic = new hap.Characteristic(hapText(label, 64), uuid, {
         format: description.numeric ? hap.Formats.FLOAT : hap.Formats.STRING,
         perms: [hap.Perms.PAIRED_READ, hap.Perms.NOTIFY],
@@ -205,6 +229,7 @@ export class TelemetryAccessory {
       service.addCharacteristic(characteristic);
       this.metricChars.add(characteristic);
     }
+    characteristic.displayName = hapText(label, 64);
     characteristic.onGet(() => this.read(uuid));
     let converted: CharacteristicValue | undefined;
     if (String(characteristic.props.format) === String(hap.Formats.FLOAT)) {
@@ -223,6 +248,7 @@ export class TelemetryAccessory {
   }
 
   unavailable(): void {
+    this.powerMeters.unavailable();
     this.available = false;
     for (const characteristic of this.metricChars) {
       characteristic.updateValue(this.error());
@@ -239,6 +265,7 @@ export class TelemetryAccessory {
   }
 
   close(): void {
+    this.powerMeters.close();
     if (this.expiry) {
       clearTimeout(this.expiry);
     }

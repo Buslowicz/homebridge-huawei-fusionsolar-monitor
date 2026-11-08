@@ -1,10 +1,10 @@
-# Weryfikacja Huawei FusionSolar Monitor 0.1.0
+# Historical verification: Huawei FusionSolar Monitor 0.1.0
 
-Zakres: plugin tylko do odczytu. Falownik SUN2000, licznik, bieżące skalarne KPI instalacji/urządzeń i aktywne alarmy. Controller for HomeKit jest planowanym widokiem danych rozszerzonych. Nie powstał osobny interfejs graficzny aplikacji.
+This report describes the original package prepared on 7 November 2026, not verification of subsequent changes. Scope: read-only SUN2000, meter, scalar plant/device KPIs and active alarms. Controller for HomeKit is the intended extended-data view; no separate graphical app was built.
 
-## Końcowe polecenia i wyniki
+## Recorded commands and results
 
-Pełna weryfikacja na Node.js 24.11.1 (kod zakończenia 0):
+Full verification on Node.js 24.11.1, exit 0:
 
 ```text
 npm run verify
@@ -31,7 +31,7 @@ npm test
 ℹ skipped 0
 ```
 
-Ponowne sprawdzenie na najstarszym deklarowanym Node.js 22.12.0 (kod zakończenia 0):
+Repeated on the oldest declared Node.js 22.12.0, exit 0:
 
 ```text
 node --test tests/*.test.mjs
@@ -42,7 +42,7 @@ node --test tests/*.test.mjs
 # skipped 0
 ```
 
-Audyt wszystkich zainstalowanych zależności, także deweloperskich (kod zakończenia 0):
+Audit of all installed dependencies, including development dependencies, exit 0:
 
 ```text
 npm audit --json --cache /private/tmp/fusionsolar-npm-cache
@@ -50,7 +50,7 @@ npm audit --json --cache /private/tmp/fusionsolar-npm-cache
 "total": 0
 ```
 
-Pakowanie (kod zakończenia 0):
+Packaging, exit 0:
 
 ```text
 npm pack --json --cache /private/tmp/fusionsolar-npm-cache --pack-destination ../../outputs
@@ -60,32 +60,27 @@ npm pack --json --cache /private/tmp/fusionsolar-npm-cache --pack-destination ..
 "bundled": []
 ```
 
-Dodatkowo porównano bajt po bajcie wszystkie 22 pliki w końcowym archiwum z plikami projektu. Potwierdzono brak zależności wykonawczych npm, plików testowych, certyfikatów/kluczy, danych konta i katalogu node_modules w paczce instalacyjnej.
+All 22 archive files were compared byte-for-byte with project files. The archive excluded runtime npm dependencies, tests, fixture certificates/keys, account data and node_modules. Package SHA-256: `1ecd3963648bd00a1e2acf457c2ccf8d35b9846930d2fe369fef607083ebdc7d`.
 
-SHA-256 paczki: `1ecd3963648bd00a1e2acf457c2ccf8d35b9846930d2fe369fef607083ebdc7d`.
+## Coverage and resolved failures
 
-## Co obejmują testy
+- 50 real-local-HTTPS API tests cover TLS, allowed hosts/read-only paths, session lifetime, API 305/401 versus HTTP 401, invalid credentials, 407/429 and long Retry-After, size/deadline limits, cancellation, strict validation, exact Long IDs, pagination and 24-hour valid-page caching.
+- 19 tests cover configuration, units, missing/stale/offline readings, alarms, local files and platform behavior using real Homebridge/HAP classes.
+- One packaged integration test starts Homebridge 1.11.4 and 2.5.0 twice each, checks precise 3.9 kW, -1100 W and 18.4 kWh through HTTP/HAP, rejects writes with -70404, checks snapshots and stable accessory IDs after restart.
+- All 70 tests passed on Node 24.11.1 and 22.12.0. Other Homebridge 2.x releases and Node 26 were not individually tested in this report.
 
-- 50 testów adaptera API na rzeczywistym lokalnym HTTPS: bezpieczne TLS, dopuszczone hosty, dozwolone ścieżki tylko do odczytu, logowanie i wygaśnięcie sesji, rozróżnienie kodów API 305/401, HTTP 401, błędne hasło, limity 407/429 i długie Retry-After, limity rozmiaru/czasu, anulowanie, ścisła walidacja, dokładne Long IDs, stronicowanie i pamięć poprawnych stron przez 24h.
-- 19 testów konfiguracji, jednostek, danych brakujących/starych/offline, alarmów, plików lokalnych i platformy z prawdziwymi klasami Homebridge/HAP.
-- 1 test gotowej paczki uruchamia Homebridge 1.11.4 i 2.5.0, każdy dwukrotnie, sprawdza przez HTTP/HAP pomiary 3.9 kW, -1100 W i 18.4 kWh, odrzucenie zapisu statusem -70404, zapis pełnych odczytów oraz stałe identyfikatory akcesoriów po restarcie.
-- Ten sam zestaw 70 testów przeszedł na Node 24.11.1 i 22.12.0. Nie twierdzimy, że osobno przetestowano każdą wersję Homebridge 2.x lub Node 26.
+Initial dependency installation reported 10 moderate minimatch vulnerabilities. Applying 11.0.3 and rerunning lint/tests resolved them; the recorded final audit was clean. Integration tests initially exposed minStep rounding and a service-name overload used instead of UUID; exact-value and cache-restoration tests passed after fixes without weakening expected readings.
 
-## Nieudane próby i usunięte problemy
+Shutdown testing was corrected to each runtime's contract: Homebridge 1.11.4 exits 143; 2.5.0 exits 0 after graceful shutdown. Both must log SIGTERM handling. A test-server null-to-empty-array conversion was fixed; the production adapter rejects null or missing data rather than inventing zero alarms/removing devices.
 
-- Pierwsza instalacja narzędzi wykazała 10 zgłoszeń umiarkowanej podatności wynikających z minimatch. Zastosowano wersję 11.0.3 i ponownie zweryfikowano lint/testy; końcowy npm audit nie zgłasza podatności.
-- Pierwsze testy integracyjne wykryły zaokrąglanie liczb przez minStep i błędne użycie przeciążenia wyszukującego nazwę usługi zamiast UUID. Oba problemy poprawiono; testy dokładnych wartości i odtworzenia cache przeszły bez osłabiania oczekiwanych pomiarów.
-- Test zamknięcia początkowo zakładał ten sam kod wyjścia dla obu Homebridge. Sprawdzono kod obu wersji: 1.11.4 używa kodu 143, 2.5.0 po poprawnym zamknięciu wychodzi z 0. Test sprawdza teraz właściwy kontrakt każdej wersji oraz komunikat obsługi SIGTERM.
-- Test null ujawnił zamianę null na [] w pomocniczym serwerze testowym. Poprawiono serwer; produkcyjny adapter odrzuca null i brak pola data, zamiast pokazywać brak alarmów lub usuwać urządzenia.
-- Zwykłe uruchomienie lokalnych serwerów testowych było blokowane przez uprawnienia środowiska. Wszystkie końcowe testy HTTPS/HAP wykonano z udostępnionym dostępem do lokalnych portów. Nie wyłączano walidacji TLS klienta produkcyjnego.
-- Pierwsza próba końcowego npm pack zakończyła się EPERM przy zapisie domyślnej pamięci npm. Powtórzenie z osobną pamięcią w /private/tmp zakończyło się powodzeniem. Nie zmieniano uprawnień katalogu użytkownika.
+Local listening was initially blocked by environment permissions. Final HTTPS/HAP tests ran with local-port access; production TLS verification remained enabled. Initial npm pack failed with EPERM in the default npm cache; an isolated /private/tmp cache succeeded without changing user-directory permissions.
 
-## Pozostała weryfikacja u użytkownika
+## Remaining limitations
 
-Nie sprawdzono połączenia z rzeczywistym kontem Huawei, odpowiedzi konkretnego SUN2000-10KTL-M1-HC ani prezentacji własnych charakterystyk na fizycznym iPhonie w Controller/Apple Dom. Nie podawano ani nie pobierano prawdziwych danych logowania. Konieczny jest lokalny test po instalacji z właściwym adresem regionalnym.
+No real Huawei account, specific SUN2000-10KTL-M1-HC response or physical iPhone presentation in Controller/Apple Home was verified. No real credentials were supplied or retrieved. Test locally after installation with the correct regional server.
 
-Nie wykonano audytu AXE natywnej aplikacji Controller/Apple Dom ani ręcznego audytu VoiceOver. Plugin dostarcza schemat konfiguracji dla istniejącego interfejsu Homebridge; nie deklarujemy weryfikacji WCAG całych zewnętrznych aplikacji.
+Native Controller/Apple Home AXE and VoiceOver audits were not performed. The plugin provides a configuration schema to Homebridge; this does not establish whole-application WCAG compliance for external apps.
 
-API jest chmurowe, zwykle z około 5-minutowym cyklem danych. Alarmy odczytywane są co 30 minut. W HomeKit mieści się 20 bieżących alarmów, teksty są skracane do 256 bajtów; lokalny plik zawiera cały zwalidowany zestaw. Nie ma sterowania, OAuth, Modbus ani historycznej bazy szeregów czasowych. Kierunek mocy licznika nie jest zgadywany.
+Cloud readings generally refresh about every five minutes; alarms every 30 minutes. HomeKit exposes up to 20 current alarms with 256-byte text; the local snapshot retains the full validated set. There is no control, OAuth, Modbus or historical time-series database. Meter direction is never guessed.
 
-Raport dotyczy paczki przygotowanej 7 listopada 2026. W chwili jej weryfikacji projekt nie był repozytorium Git i nie był opublikowany w npm/GitHub. Późniejsze utworzenie prywatnego repozytorium źródeł na GitHubie zlecono osobno; nie zmienia ono opisanych wyników testów ani ograniczeń. Nie zmieniano działającej instalacji Homebridge użytkownika.
+At this historical verification, the directory was not yet a Git repository and was not published to npm/GitHub. Later private GitHub source publication was a separate request. The user's running Homebridge installation was not modified.
