@@ -14,7 +14,7 @@ Pełny zestaw pomiarów jest przeznaczony do **Controller for HomeKit**. Eve nie
 
 ## Automatyczne wydania
 
-Każdy push na `main` uruchamia [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml). Akcja instaluje zależności z pliku blokady, sprawdza typy i lint, buduje projekt, uruchamia wszystkie testy i audyt zależności. Po powodzeniu publikuje [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) z gotowym plikiem `.tgz` i `SHA256SUMS`. Repozytorium i jego wydania zachowują prywatną widoczność.
+Każdy push na `main` uruchamia [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml). Akcja instaluje zależności z pliku blokady, sprawdza typy i lint, buduje projekt, uruchamia wszystkie testy i audyt zależności. Po powodzeniu publikuje [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) z gotowym plikiem `.tgz` i `SHA256SUMS`. Widoczność wydań wynika z ustawień repozytorium; workflow nie zmienia jego widoczności.
 
 Pierwsze wydanie korzysta z wersji bazowej `package.json` (obecnie `0.1.1`). Następne automatycznie zwiększają numer patch względem najwyższego stabilnego tagu, np. `0.1.2`, `0.1.3`. Podniesienie wersji bazowej w źródłach pozwala rozpocząć nową serię minor/major. Wersja paczki jest ustawiana tylko w środowisku budowania; akcja nie dopisuje commitów z numerami wersji do `main`.
 
@@ -42,7 +42,7 @@ Następnie zainstaluj gotową paczkę i zrestartuj Homebridge w jego panelu. Nie
 
 ### Alternatywa: instalacja lokalna ze źródeł GitHuba
 
-Repozytorium jest prywatne, więc Git na urządzeniu Homebridge musi mieć dostęp do Twojego konta GitHub. Tej metody używaj w katalogu projektu, którego `node_modules` jest skonfigurowanym katalogiem pluginów Twojej usługi Homebridge:
+Jeśli repozytorium jest prywatne, Git na urządzeniu Homebridge musi mieć uprawnienia do jego odczytu. Tej metody używaj w katalogu projektu, którego `node_modules` jest skonfigurowanym katalogiem pluginów Twojej usługi Homebridge:
 
 ```sh
 npm install github:Buslowicz/homebridge-huawei-fusionsolar-monitor
