@@ -23,7 +23,7 @@ async function freePort() {
   return port;
 }
 
-test('scoped archive loads in real Homebridge 1/2, migrates legacy pairing, then restores cache', { timeout: 90_000 }, async () => {
+test('scoped archive loads in Homebridge 1/2, migrates full telemetry to minimal, then restores pairing', { timeout: 90_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'fusionsolar-packaged-'));
   let child;
   try {
@@ -64,8 +64,12 @@ test('scoped archive loads in real Homebridge 1/2, migrates legacy pairing, then
         accessories: []
       };
       let previousIds;
-      for (let run = 0; run < 3; run++) {
-        await writeFile(join(storage, 'config.json'), JSON.stringify({ ...configuration, plugins: [run === 0 ? legacyName : packageName] }));
+      for (let run = 0; run < 4; run++) {
+        const advanced = run < 2;
+        await writeFile(join(storage, 'config.json'), JSON.stringify({
+          ...configuration, plugins: [run === 0 ? legacyName : packageName],
+          platforms: configuration.platforms.map((platform) => advanced ? { ...platform, advancedTelemetry: true } : platform)
+        }));
         let logs = '';
         child = spawn(process.execPath, [binary, '-U', storage, '-P', run === 0 ? legacyPlugin : modulesDirectory, '--strict-plugin-resolution', '-Q', '-I', '-T'], { cwd: directory, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
         child.stdout.on('data', (chunk) => { logs += chunk.toString(); });
@@ -97,29 +101,47 @@ test('scoped archive loads in real Homebridge 1/2, migrates legacy pairing, then
         const power = readings.find((reading) => reading.description === 'Active power [kW]');
         const meter = readings.find((reading) => reading.description === 'Active power [W]');
         const daily = readings.find((reading) => reading.description === 'Production today [kWh]');
-        assert.ok(power, `No inverter power in real HAP response: ${JSON.stringify(payload)}`);
-        assert.equal(power.value, 3.9);
-        assert.equal(meter.value, -1100);
-        assert.equal(daily.value, 18.4);
-        assert.ok(!power.perms.includes('pw'));
+        if (advanced) {
+          assert.ok(power, `No inverter power in diagnostic HAP response: ${JSON.stringify(payload)}`);
+          assert.equal(power.value, 3.9);
+          assert.equal(meter.value, -1100);
+          assert.equal(daily.value, 18.4);
+          assert.ok(!power.perms.includes('pw'));
+        } else {
+          assert.equal(power, undefined);
+          assert.equal(meter, undefined);
+          assert.equal(daily, undefined);
+          assert.ok(!readings.some((r) => /API received at|Internal temperature|PV1 voltage|Alarm 1 -|Alarms critical/u.test(r.description ?? '')));
+          const ownServices = payload.accessories.filter((a) => a.aid !== 1).flatMap((a) => a.services)
+            .filter((s) => !['3E', '0000003E-0000-1000-8000-0026BB765291'].includes(s.type.toUpperCase()));
+          assert.equal(ownServices.length, 7, 'only four power meters, two status sensors and one alarm count remain');
+        }
         const productionMeter = readings.find((r) => r.description === 'PV Production [W]');
         const homeMeter = readings.find((r) => r.description === 'Home Consumption [W]');
         const gridMeter = readings.find((r) => r.description === 'Grid Power [W]');
         const importMeter = readings.find((r) => r.description === 'Grid Import [W]');
         const exportMeter = readings.find((r) => r.description === 'Grid Export [W]');
-        for (const [reading, expected] of [[productionMeter, 3900], [homeMeter, 2800], [gridMeter, -1100], [importMeter, 0], [exportMeter, 1100]]) {
+        if (advanced) assert.equal(gridMeter.value, -1100);
+        else assert.equal(gridMeter, undefined, 'signed raw meter service removed once import/export are configured');
+        for (const [reading, expected] of [[productionMeter, 3900], [homeMeter, 2800], [importMeter, 0], [exportMeter, 1100]]) {
           assert.ok(reading, 'electrical meter is present in the actual HAP response');
           assert.equal(reading.type.toUpperCase(), 'E863F10D-079E-48FF-8F27-9C2605A29F52');
           assert.equal(reading.value, expected);
           assert.equal(reading.unit, 'W');
           assert.ok(!reading.perms.includes('pw'));
         }
-        const ids = [power, productionMeter, homeMeter, gridMeter, importMeter, exportMeter].map((r) => ({ aid: r.aid, iid: r.iid }));
-        if (previousIds) assert.deepEqual(ids, previousIds, 'pairing/automation identifiers remain stable after package migration and restart');
+        const alarmCount = readings.find((r) => r.description === 'Active alarms');
+        assert.equal(alarmCount.value, 0);
+        const contacts = payload.accessories.flatMap((accessory) => accessory.services
+          .filter((s) => ['80', '00000080-0000-1000-8000-0026BB765291'].includes(s.type.toUpperCase()))
+          .flatMap((s) => s.characteristics.filter((r) => ['6A', '0000006A-0000-1000-8000-0026BB765291'].includes(r.type.toUpperCase())).map((r) => ({ aid: accessory.aid, ...r }))));
+        assert.equal(contacts.length, 2);
+        const ids = [productionMeter, homeMeter, importMeter, exportMeter, alarmCount, ...contacts].map((r) => ({ aid: r.aid, iid: r.iid }));
+        if (previousIds) assert.deepEqual(ids, previousIds, 'retained power/status/alarm identifiers survive minimal mode migration and restart');
         previousIds = ids;
         const write = await fetch(`http://127.0.0.1:${port}/characteristics`, {
           method: 'PUT', headers: { authorization: pin, 'content-type': 'application/hap+json' },
-          body: JSON.stringify({ characteristics: [power, productionMeter, homeMeter].map((r) => ({ aid: r.aid, iid: r.iid, value: 0 })) })
+          body: JSON.stringify({ characteristics: [productionMeter, homeMeter, alarmCount, ...(advanced ? [power] : [])].map((r) => ({ aid: r.aid, iid: r.iid, value: 0 })) })
         });
         assert.equal(write.status, 207);
         assert.ok((await write.json()).characteristics.every((r) => r.status === -70404), 'HomeKit rejects writes to KPIs and power meters');

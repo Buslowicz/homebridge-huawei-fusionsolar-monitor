@@ -24,3 +24,15 @@ test('power settings reject invalid types, unknown directions and inexact meter 
   for (const gridPowerDirection of [null, '', true, 1, {}, 'import', 'positiveimport']) assert.throws(() => config({ gridPowerDirection }), /gridPowerDirection/);
   for (const gridMeterId of [null, 1002, {}, '', ' ', ' 1002', '1002 ', '+1002', '01', '1.0', '1e3', '1\n', '1'.repeat(129)]) assert.throws(() => config({ gridMeterId }), /gridMeterId/);
 });
+
+test('detailed diagnostic telemetry defaults off and accepts explicit booleans', () => {
+  assert.equal(config().advancedTelemetry, false);
+  for (const advancedTelemetry of [false, true]) {
+    assert.equal(config({ advancedTelemetry }).advancedTelemetry, advancedTelemetry);
+  }
+});
+test('detailed diagnostic telemetry rejects null and nonboolean values', () => {
+  for (const advancedTelemetry of [null, 0, 1, '', 'true', 'false', {}, []]) {
+    assert.throws(() => config({ advancedTelemetry }), /advancedTelemetry must be true or false/);
+  }
+});

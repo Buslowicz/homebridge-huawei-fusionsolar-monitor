@@ -2,7 +2,7 @@
   "pluginAlias": "HuaweiFusionSolarMonitor",
   "pluginType": "platform",
   "singular": true,
-  "headerDisplay": "Read-only Northbound/OpenAPI monitoring. A normal FusionSolar app password is insufficient. Extended measurements are intended for Controller for HomeKit; Apple Home shows selected standard sensors. The plugin does not control the inverter.",
+  "headerDisplay": "Read-only Northbound/OpenAPI monitoring for home automations. A normal FusionSolar app password is insufficient. Power readings are intended for Controller for HomeKit; Apple Home shows selected standard sensors. Detailed diagnostics are optional. The plugin does not control the inverter.",
   "schema": {
     "type": "object",
     "properties": {
@@ -63,7 +63,7 @@
         "title": "Local full-reading snapshot",
         "type": "boolean",
         "default": true,
-        "description": "Writes latest readings and full alarm descriptions under huawei-fusionsolar-monitor in Homebridge storage. Owner-only file permissions; excludes passwords and tokens."
+        "description": "Writes full validated returned records for polled sources and full alarm descriptions under huawei-fusionsolar-monitor in Homebridge storage. Diagnostic device KPIs are only polled with Detailed diagnostic telemetry. Owner-only permissions; excludes passwords and tokens."
       },
       "demo": {
         "title": "Demo mode (synthetic data)",
@@ -75,7 +75,7 @@
         "title": "Power measurement services",
         "type": "boolean",
         "default": true,
-        "description": "Adds PV Production, signed Grid Power and, when explicitly configured, Grid Import/Export and estimated Home Consumption inside existing accessories. Original metrics remain available when disabled."
+        "description": "Adds PV Production and estimated Home Consumption inside existing accessories. Meters show Grid Import/Export when direction is configured, otherwise raw signed Grid Power. Disable to remove these power services; detailed raw metrics require Detailed diagnostic telemetry."
       },
       "gridPowerDirection": {
         "title": "Grid meter power direction",
@@ -95,6 +95,12 @@
         "maxLength": 128,
         "pattern": "^-?(?:0|[1-9][0-9]*)$",
         "description": "Exact decimal device ID as a string. Omit for automatic selection of the unique plant meter. Use to resolve multiple meters; no whitespace or numeric values."
+      },
+      "advancedTelemetry": {
+        "title": "Detailed diagnostic telemetry",
+        "type": "boolean",
+        "default": false,
+        "description": "Optional; not needed for normal automations. Exposes all raw KPI groups, inverter temperature, signed Grid Power alongside directional meters, and alarm details. Also reads diagnostic device KPIs."
       }
     }
   }

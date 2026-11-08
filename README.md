@@ -2,7 +2,7 @@
 
 Read-only Huawei FusionSolar cloud telemetry for HomeKit, primarily for domestic SUN2000 inverters and power meters. A battery is not required. The plugin never switches equipment or changes plant settings.
 
-The full measurement set is intended for **Controller for HomeKit**; Eve is not required. Apple Home shows selected standard sensors. Custom characteristics are not a separate graphical dashboard in Apple Home. Check their presentation and automation support in your installed Controller/iOS version.
+The default profile keeps only readings useful for home automations. Power readings are intended for **Controller for HomeKit**; Eve is not required. Apple Home shows selected standard sensors. Custom characteristics are not a separate graphical dashboard in Apple Home. Check their presentation and automation support in your installed Controller/iOS version. Detailed diagnostic telemetry is opt-in.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ The full measurement set is intended for **Controller for HomeKit**; Eve is not 
 
 Every push to `main` runs [Build and release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/actions/workflows/release.yml): locked dependency installation, type checking, lint, build, all tests and dependency audit. A successful build publishes a [GitHub Release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases) containing a ready-to-install `.tgz` and `SHA256SUMS`. The same verified archive is then published as `@buslowicz/homebridge-huawei-fusionsolar-monitor` to GitHub Packages. The workflow does not change repository or package visibility. A new GitHub npm package starts private; its package settings control access independently of repository visibility.
 
-The first release uses the source `package.json` baseline (currently `0.1.1`). Subsequent releases increment the highest stable patch tag, for example `0.1.2`, `0.1.3`. Raising the source baseline starts a new minor/major series. Package versions are assigned only during the build; no version commits are added to `main`.
+The first release uses the source `package.json` baseline (currently `0.2.0`). Subsequent releases increment the highest stable patch tag, for example `0.2.1`, `0.2.2`. Raising the source baseline starts a new minor/major series. Package versions are assigned only during the build; no version commits are added to `main`.
 
 Tags identify the exact verified commit. Rerunning the same commit reuses its version and checks published files rather than overwriting them. Publication follows complete asset upload; a failed attempt may leave a tag or draft that a retry can finish. Releases run sequentially, with up to 100 queued runs under GitHub Actions limits.
 
@@ -44,7 +44,7 @@ The scoped registry mapping created by `npm login --scope` routes only `@buslowi
 
 Use `-g` only for a standard global Homebridge plugin installation. For a custom plugin directory, install locally in that directory, omitting `-g`. For Docker, log in and install inside the container or its configured persistent plugin environment. The Homebridge dashboard's default npmjs.org search may not list this GitHub-hosted package; use its terminal for the command above.
 
-To update later, repeat the same install command and restart Homebridge. To select a specific published version, replace `@latest` with, for example, `@0.1.4`.
+To update later, repeat the same install command and restart Homebridge. To select a specific published version, replace `@latest` with, for example, `@0.2.0`.
 
 ### Migrate from the original unscoped package
 
@@ -65,7 +65,7 @@ Install only one package identity at a time. If your configuration explicitly fi
 Download the `.tgz` from the [latest release](https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor/releases/latest), transfer it to the Homebridge device, and run in its environment:
 
 ```sh
-npm install -g /full/path/buslowicz-homebridge-huawei-fusionsolar-monitor-0.1.4.tgz
+npm install -g /full/path/buslowicz-homebridge-huawei-fusionsolar-monitor-0.2.0.tgz
 ```
 
 The archive includes compiled runtime files and needs no build tools on Raspberry Pi. `-g` installs into the location searched by a standard global Homebridge installation. Use the same Node/npm environment and installation method as your other plugins. For a service with a custom plugin directory, install there according to that service's configuration.
@@ -109,6 +109,7 @@ Example `platforms` entry in `config.json`:
   "alarms": true,
   "statusSensors": true,
   "powerMeters": true,
+  "advancedTelemetry": false,
   "gridPowerDirection": "unconfigured",
   "writeSnapshot": true
 }
@@ -116,26 +117,45 @@ Example `platforms` entry in `config.json`:
 
 Homebridge stores UI-entered credentials in its configuration file. Alternatively omit `username` and `password`, and set `FUSIONSOLAR_USERNAME` and `FUSIONSOLAR_PASSWORD` in the **Homebridge service** environment. Variables in a separate terminal may not reach the service. Never share credentials in chats or issue reports.
 
-## Measurements
+## Measurements for home automations
 
-The plugin discovers assigned plants/devices and creates plant, inverter, meter and optional active-alarm accessories. Custom metrics appear in `Huawei metrics 1` and subsequent groups. Group numbers are HomeKit subdivisions, not phase or panel numbers. In Controller, open accessory details and characteristics; aliases may be needed in some app versions. Labels include units, for example `Active power [kW]` and `Voltage phase A [V]`. Missing values produce read errors/unavailability rather than invented zero readings.
+The plugin discovers assigned plants and devices. By default, it exposes the following services inside the existing accessories; it does not create extra accessories for each reading. Missing values remain unavailable rather than becoming invented zeros. All readings are read-only: automations can control other home accessories, but cannot control the inverter.
 
-| Source | Available data when returned by Huawei |
+| Accessory | Default readings |
+| --- | --- |
+| Inverter | **PV Production** in W; optional production-active contact sensor |
+| Plant | Estimated **Home Consumption** in W when the safety conditions below are met; optional plant-fault contact sensor |
+| Grid meter | **Grid Import** and **Grid Export** in W when the sign convention is configured; otherwise only raw signed **Grid Power** in W |
+| Active alarms | One **Active alarms** count when `alarms: true` |
+
+`powerMeters` controls the power services; `statusSensors` controls the virtual contacts. Both default to `true`. `alarms` continues to control alarm retrieval and the alarm accessory. Detailed telemetry is disabled by default with `advancedTelemetry: false`. Accessories with no enabled services are omitted. In the default profile, `gridMeterId` also limits meter accessories to the selected meter.
+
+### Updating an existing installation
+
+The default profile removes cached diagnostic services when cached accessories are configured. After successful discovery, it also removes diagnostic-only and otherwise unused accessories. The retained power, contact and active-alarm-count identifiers remain stable. Automations referencing removed diagnostic characteristics need `advancedTelemetry: true`; enable it before updating if those automations must be retained. Failed discovery does not remove cached accessories, although hidden diagnostic services are already removed during cache configuration.
+
+### Opt-in detailed diagnostics
+
+Set `"advancedTelemetry": true` to expose the full measurement profile. This is not needed for normal automations. It adds generic `Huawei metrics 1` and subsequent KPI groups, inverter internal temperature, daily/cumulative energy, phase/PV/DC electrical measurements, state codes, receipt times and alarm details. Signed Grid Power is then also visible alongside configured Grid Import/Export. Group numbers are HomeKit subdivisions, not phase or panel numbers.
+
+| Source | Diagnostic data when returned by Huawei |
 | --- | --- |
 | Plant | Daily/monthly/total production, daily consumption, exported energy, income, health |
 | SUN2000 type 38 or 1 | AC/DC/reactive power, phase/PV voltages and currents, frequency, efficiency, internal temperature, daily/total/MPPT energy, states and start/stop times |
 | Meter type 17 or 47 | Total/phase power, voltages/currents, power factor, positive/negative energy counters and other KPIs |
-| Alarms | Count, severity counts, names, IDs, times, causes and suggestions for up to 20 current alarms in HomeKit |
+| Alarms | Severity counts, names, IDs, times, causes and suggestions for up to 20 current alarms in HomeKit |
 | Other supported types | Scalar API KPIs for EMI 10, battery 39, ESS 41 and SmartAssistant 23070; not every field has a known label/unit |
 
-Unknown scalar fields retain names based on API keys; units are never guessed. Firmware/model support varies. `null`, empty and `N/A` values remain unavailable. Physically absent PV inputs may be omitted or reported as zero by Huawei; that distinction is preserved. Inverter `active_power` is **kW**, while meter type 17/47 `active_power` is **W**. Original signed meter values are preserved. Positive/negative energy counters are not relabeled import/export without wiring confirmation. `day_use_energy` is Huawei's daily consumption; income currency is configured in FusionSolar, not assumed.
+EMI, battery/ESS and SmartAssistant diagnostic accessories and their KPI queries are enabled only with detailed telemetry. Discovery still detects batteries in the default profile so that Home Consumption is never calculated for a plant with a battery. Default device KPI queries cover inverters and grid meters, alongside plant queries and enabled alarms.
+
+In Controller, open accessory details and characteristics; aliases may be needed in some app versions. Labels include units, for example `Active power [kW]` and `Voltage phase A [V]`. Unknown scalar fields retain names based on API keys; units are never guessed. Firmware/model support varies. `null`, empty and `N/A` values remain unavailable. Physically absent PV inputs may be omitted or reported as zero by Huawei; that distinction is preserved. Inverter `active_power` is **kW**, while meter type 17/47 `active_power` is **W**. Original signed meter values are preserved. Positive/negative energy counters are not relabeled import/export without wiring confirmation. `day_use_energy` is Huawei's daily consumption; income currency is configured in FusionSolar, not assumed.
 
 ### Power services in existing accessories
 
 With `powerMeters: true` (default), these services are added inside existing accessories:
 
 - **PV Production**: inverter AC active power converted from kW to W.
-- **Grid Power**: the meter's original signed active power in W, unchanged.
+- **Grid Power**: the meter's original signed active power in W, unchanged; shown when direction is unconfigured or detailed telemetry is enabled.
 - **Grid Import** and **Grid Export**: nonnegative W after explicitly configuring the sign convention.
 - **Home Consumption (plant)**: estimated W, calculated as the sum of all inverter AC power plus signed grid import. It is not a synchronized device measurement.
 
@@ -143,11 +163,11 @@ With `powerMeters: true` (default), these services are added inside existing acc
 
 When a plant has multiple meters, set optional `gridMeterId` to the exact device ID string, for example `"1002"`. It must be a signed decimal string of up to 128 characters; numbers, whitespace and empty strings are rejected. Omit it to select the plant's unique meter automatically. An explicit ID limits meter selection; an ambiguous or missing selection is unavailable.
 
-Home Consumption is available only for plants without a battery, with all required sources connected and successfully read in the current polling cycle. Missing/failed data, ambiguous meters, disconnected sources and a negative derived result remain unavailable; no zero is inferred. Cloud measurements usually refresh about every five minutes and may not be synchronized. Setting `powerMeters: false` disables these added services and leaves the original metrics available. There is no fake switch.
+Home Consumption is available only for plants without a battery, with all required sources connected and successfully read in the current polling cycle. Missing/failed data, ambiguous meters, disconnected sources and a negative derived result remain unavailable; no zero is inferred. Cloud measurements usually refresh about every five minutes and may not be synchronized. Setting `powerMeters: false` disables these power services. Original raw metrics are available only with `advancedTelemetry: true`. There is no fake switch.
 
 ### Selected data in Apple Home
 
-- Inverter internal temperature: device temperature, not room temperature.
+- Inverter internal temperature (detailed telemetry only): device temperature, not room temperature.
 - Optional virtual `Huawei PV Production` contact sensor: open means positive AC production; closed means no positive power.
 - Optional virtual `Huawei Plant Fault` contact sensor: open means Huawei reports a fault/disconnection; closed means healthy. It does not replace the alarm list.
 
@@ -162,9 +182,9 @@ All readings are read-only. Automations may control other home accessories based
 - Every attempted query reserves local quota, including failures. API 305/HTTP 401 invalidate the session; it may renew, but the query waits for its next allowed cycle. API 401 means permission failure, not repeated login.
 - 407/429 and `Retry-After` extend delays. Multiple integrations share account limits. Daily quotas depend on account resources; avoid repeated restarts.
 - A failed source becomes unavailable while other sources may continue. Current values expire after `2 × interval + 60 seconds`; alarms after 61 minutes. Saved values are not restored as current after restart.
-- Explicit device/meter disconnection makes its electrical values unavailable while connection state remains visible.
+- Explicit device/meter disconnection makes its electrical values unavailable while diagnostic connection state remains visible when detailed telemetry is enabled.
 
-`API received at` records response receipt, not a confirmed physical measurement timestamp.
+With detailed telemetry, `API received at` records response receipt, not a confirmed physical measurement timestamp.
 
 ## Local snapshot
 
@@ -174,11 +194,11 @@ With `writeSnapshot: true`, the latest JSON is stored at:
 <Homebridge storage>/huawei-fusionsolar-monitor/<identifier>.json
 ```
 
-It includes device metadata, all validated KPIs, full alarm descriptions, and each source's last read time/status. `available` means the last API query succeeded, not guaranteed physical connectivity. A failed query retains previous values with `available: false` and their original receipt date.
+It includes device metadata, full validated returned KPI records for polled sources, full alarm descriptions, and each source's last read time/status. Hiding diagnostic characteristics does not trim those returned records. Diagnostic-only device KPIs are not polled unless `advancedTelemetry: true`. `available` means the last API query succeeded, not guaranteed physical connectivity. A failed query retains previous values with `available: false` and their original receipt date.
 
 Passwords, session tokens, plant addresses/geolocation and account contacts are excluded. Plant names, IDs and serial numbers remain private: review before sharing. Directory permissions are 700 and file permissions 600. No additional web server runs. Only the latest snapshot is retained, not long-term history.
 
-HomeKit alarm text is limited to 256 UTF-8 bytes; full validated descriptions remain in the snapshot. Up to 20 alarms are sorted by severity then newest first. Their numbers are positions in the current list, not stable event IDs. Additional alarms remain in the snapshot.
+With detailed telemetry, HomeKit alarm text is limited to 256 UTF-8 bytes; full validated descriptions remain in the snapshot. Up to 20 alarms are sorted by severity then newest first. Their numbers are positions in the current list, not stable event IDs. Additional alarms remain in the snapshot.
 
 ## Demo
 

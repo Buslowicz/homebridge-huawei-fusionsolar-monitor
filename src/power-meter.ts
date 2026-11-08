@@ -7,7 +7,9 @@ import { connectedPower, gridImportWatts, productionWatts } from './power.js';
 // https://github.com/ebaauw/homebridge-lib/blob/master/lib/EveHomeKitTypes.js
 export const POWER_SERVICE_UUID = 'E863F008-079E-48FF-8F27-9C2605A29F52';
 export const POWER_CHARACTERISTIC_UUID = 'E863F10D-079E-48FF-8F27-9C2605A29F52';
-export type PowerMeterOptions = Pick<MonitorConfig, 'powerMeters' | 'gridPowerDirection'>;
+export type PowerMeterOptions = Pick<MonitorConfig, 'powerMeters' | 'gridPowerDirection'> & {
+  readonly advancedTelemetry?: boolean;
+};
 const defaults: PowerMeterOptions = { powerMeters: true, gridPowerDirection: 'unconfigured' };
 
 interface Reading {
@@ -33,7 +35,7 @@ export class PowerMeters {
     const definitions: readonly (readonly [string, string])[] = !options.powerMeters ? []
       : typeId === 1 || typeId === 38 ? [['production', 'PV Production']]
         : typeId === 17 || typeId === 47 ? [
-          ['grid', 'Grid Power'],
+          ...(options.advancedTelemetry || options.gridPowerDirection === 'unconfigured' ? [['grid', 'Grid Power']] as const : []),
           ...(options.gridPowerDirection === 'unconfigured' ? [] : [['import', 'Grid Import'], ['export', 'Grid Export']] as const)
         ] : typeId === 'plant' && options.gridPowerDirection !== 'unconfigured' ? [['consumption', 'Home Consumption']] : [];
     const wanted = new Set(definitions.map(([key]) => `power-${key}`));

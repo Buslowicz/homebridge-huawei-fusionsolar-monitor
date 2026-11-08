@@ -7,6 +7,9 @@ import type { PowerMeterOptions } from './power-meter.js';
 
 type Accessory = PlatformAccessory<Record<string, unknown>>;
 export const METRIC_SERVICE_SEED = 'huawei-fusionsolar-monitor:metrics:v1';
+export interface TelemetryOptions extends PowerMeterOptions {
+  readonly alarmsAccessory?: boolean;
+}
 
 /** HomeKit limits strings by UTF-8 bytes, not JavaScript UTF-16 code units. */
 export function hapText(value: string, maxBytes = 256): string {
@@ -43,16 +46,28 @@ export class TelemetryAccessory {
     private readonly maxAgeMs: number,
     statusSensors: boolean,
     private readonly now: () => number = Date.now,
-    powerOptions?: PowerMeterOptions
+    private readonly options: TelemetryOptions = { powerMeters: true, gridPowerDirection: 'unconfigured' }
   ) {
     const hap = api.hap;
-    this.powerMeters = new PowerMeters(accessory, api, typeId, maxAgeMs, now, powerOptions);
+    this.powerMeters = new PowerMeters(accessory, api, typeId, maxAgeMs, now, options);
     this.serviceUuid = hap.uuid.generate(METRIC_SERVICE_SEED);
-    for (const service of accessory.services) {
+    for (const service of [...accessory.services]) {
       if (service.UUID === this.serviceUuid) {
+        if (!options.advancedTelemetry) {
+          const count = options.alarmsAccessory ? this.metricUuid('alarm_count') : undefined;
+          if (!count || !service.characteristics.some((characteristic) => characteristic.UUID === count)) {
+            accessory.removeService(service);
+            continue;
+          }
+          for (const characteristic of [...service.characteristics]) {
+            if (![hap.Characteristic.Name.UUID, hap.Characteristic.StatusFault.UUID, count].includes(characteristic.UUID)) {
+              service.removeCharacteristic(characteristic);
+            }
+          }
+        }
         const bucket = /^metrics-(\d+)$/u.exec(service.subtype ?? '');
         if (bucket) {
-          this.nameService(service, `Huawei metrics ${Number(bucket[1]) + 1}`);
+          this.nameService(service, options.advancedTelemetry ? `Huawei metrics ${Number(bucket[1]) + 1}` : 'Huawei Active Alarms');
         }
         for (const characteristic of service.characteristics) {
           if (![hap.Characteristic.Name.UUID, hap.Characteristic.StatusFault.UUID].includes(characteristic.UUID)) {
@@ -87,7 +102,13 @@ export class TelemetryAccessory {
       }
       this.contactServices.clear();
     }
-    if (typeof typeId === 'number' && [1, 38].includes(typeId)) {
+    if (!options.advancedTelemetry) {
+      for (const service of [...accessory.services]) {
+        if (service.UUID === hap.Service.TemperatureSensor.UUID && service.subtype === 'temperature') {
+          accessory.removeService(service);
+        }
+      }
+    } else if (typeof typeId === 'number' && [1, 38].includes(typeId)) {
       this.temperatureService = accessory.getService(hap.Service.TemperatureSensor)
         ?? accessory.addService(hap.Service.TemperatureSensor, 'Huawei Inverter Temperature', 'temperature');
       this.nameService(this.temperatureService, 'Huawei Inverter Temperature');
@@ -199,6 +220,9 @@ export class TelemetryAccessory {
   }
 
   private updateMetric(key: string, value: MetricValue): void {
+    if (!this.options.advancedTelemetry && !(this.options.alarmsAccessory && key === 'alarm_count')) {
+      return;
+    }
     if (value === null) {
       return;
     }
@@ -211,7 +235,7 @@ export class TelemetryAccessory {
     // Homebridge's string overload matches a service NAME, not its UUID.
     let service = this.accessory.services.find((candidate) => candidate.UUID === this.serviceUuid && candidate.subtype === subtype);
     if (!service) {
-      service = new hap.Service(`Huawei metrics ${bucket + 1}`, this.serviceUuid, subtype);
+      service = new hap.Service(this.options.advancedTelemetry ? `Huawei metrics ${bucket + 1}` : 'Huawei Active Alarms', this.serviceUuid, subtype);
       this.accessory.addService(service);
       service.addCharacteristic(hap.Characteristic.StatusFault);
     }

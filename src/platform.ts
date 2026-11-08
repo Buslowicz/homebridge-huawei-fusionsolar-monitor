@@ -10,7 +10,7 @@ import { DemoApi } from './demo.js';
 import { writeSnapshot } from './snapshot.js';
 import { homeConsumptionWatts } from './power.js';
 import type { MetricMap } from './contracts.js';
-import type { PowerMeterOptions } from './power-meter.js';
+import type { TelemetryOptions } from './accessory.js';
 
 export const PLUGIN_NAME = '@buslowicz/homebridge-huawei-fusionsolar-monitor';
 // Freeze the original identity seed so changing npm registry/name preserves HomeKit pairing and automations.
@@ -80,9 +80,11 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
     return ((this.config?.pollIntervalSeconds ?? 300) * 2 + 60) * 1000;
   }
 
-  private powerOptions(isAlarms: boolean, sourceId: unknown): PowerMeterOptions {
+  private powerOptions(isAlarms: boolean, sourceId: unknown): TelemetryOptions {
     return {
       powerMeters: !isAlarms && (this.config?.powerMeters ?? false),
+      advancedTelemetry: this.config?.advancedTelemetry ?? false,
+      alarmsAccessory: isAlarms,
       gridPowerDirection: this.config?.gridMeterId !== undefined && this.config.gridMeterId !== sourceId
         ? 'unconfigured' : this.config?.gridPowerDirection ?? 'unconfigured'
     };
@@ -142,7 +144,7 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
       }, this.plants.map((plant) => this.uuid('plant', plant.code)));
       const byType = new Map<number, string[]>();
       for (const device of this.devices) {
-        if (SUPPORTED_DEVICE_TYPES.includes(device.typeId)) {
+        if (SUPPORTED_DEVICE_TYPES.includes(device.typeId) && (this.config.advancedTelemetry || [1, 38, 17, 47].includes(device.typeId))) {
           const group = byType.get(device.typeId) ?? [];
           group.push(device.id);
           byType.set(device.typeId, group);
@@ -234,13 +236,15 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
     this.devices = devices;
     const wanted = new Set<string>();
     for (const plant of plants) {
-      wanted.add(this.ensureAccessory('plant', plant.code, plant.name, 'plant', 'FusionSolar plant', plant.code, ''));
+      if (this.config.advancedTelemetry || this.config.statusSensors || (this.config.powerMeters && this.config.gridPowerDirection !== 'unconfigured')) {
+        wanted.add(this.ensureAccessory('plant', plant.code, plant.name, 'plant', 'FusionSolar plant', plant.code, ''));
+      }
       if (this.config.alarms) {
         wanted.add(this.ensureAccessory('alarms', plant.code, `${plant.name} alarms`, 'plant', 'FusionSolar alarms', plant.code, ''));
       }
     }
     for (const device of devices) {
-      if (SUPPORTED_DEVICE_TYPES.includes(device.typeId)) {
+      if (this.exposeDevice(device)) {
         wanted.add(this.ensureAccessory('device', device.id, device.name, device.typeId, device.model, device.serial || device.id, device.softwareVersion));
       }
     }
@@ -258,6 +262,16 @@ export class HuaweiFusionSolarPlatform implements DynamicPlatformPlugin {
 
   private uuid(kind: Kind, id: string): string {
     return this.api.hap.uuid.generate(`${ACCESSORY_IDENTITY_SEED}:${this.instanceId}:${kind}:${id}`);
+  }
+
+  private exposeDevice(device: Device): boolean {
+    if (this.config?.advancedTelemetry) {
+      return SUPPORTED_DEVICE_TYPES.includes(device.typeId);
+    }
+    // Discovery still includes storage devices, so household estimates remain disabled with batteries.
+    return ([1, 38].includes(device.typeId) && (this.config?.powerMeters === true || this.config?.statusSensors === true))
+      || (this.config?.powerMeters === true && [17, 47].includes(device.typeId)
+        && (this.config.gridMeterId === undefined || device.id === this.config.gridMeterId));
   }
 
   private ensureAccessory(kind: Kind, id: string, name: string, typeId: number | 'plant', model: string, serial: string, firmware: string): string {

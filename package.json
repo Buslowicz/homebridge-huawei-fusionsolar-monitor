@@ -1,6 +1,6 @@
 {
   "name": "@buslowicz/homebridge-huawei-fusionsolar-monitor",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Read-only Huawei FusionSolar Northbound telemetry for Homebridge and Controller for HomeKit",
   "repository": {"type": "git", "url": "git+https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor.git"},
   "homepage": "https://github.com/Buslowicz/homebridge-huawei-fusionsolar-monitor#readme",

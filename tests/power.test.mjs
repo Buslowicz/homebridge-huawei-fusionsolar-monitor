@@ -8,7 +8,7 @@ import { TelemetryAccessory } from '../dist/accessory.js';
 import { DemoApi } from '../dist/demo.js';
 import { HuaweiFusionSolarPlatform, PLATFORM_NAME, PLUGIN_NAME } from '../dist/platform.js';
 
-const options = { powerMeters: true, gridPowerDirection: 'positiveImport' };
+const options = { powerMeters: true, gridPowerDirection: 'positiveImport', advancedTelemetry: true };
 const device = (id, typeId, stationCode = 'P1') => ({ id, typeId, stationCode, name: id, serial: id, model: '', softwareVersion: '' });
 const devices = [device('1', 38), device('2', 47)];
 const samples = (pv, grid) => new Map([['1', { active_power: pv, run_state: 1 }], ['2', { active_power: grid, meter_status: 1 }]]);
@@ -82,7 +82,7 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
     const api = new Api();
     const accessory = new api.platformAccessory('My inverter', api.hap.uuid.generate('english-migration'));
     api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-    const first = new TelemetryAccessory(accessory, api, 38, 600_000, true);
+    const first = new TelemetryAccessory(accessory, api, 38, 600_000, true, undefined, options);
     first.update({ active_power: 3.900125, temperature: 42 }, Date.now());
     assert.equal(await reading(accessory, 'production').handleGetRequest(), 3900.125);
     const uuid = first.metricUuid('active_power');
@@ -92,7 +92,7 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
     const restored = api.platformAccessory.deserialize(api.platformAccessory.serialize(accessory));
     const ids = accessory.services.map((s) => s.getServiceId());
     first.close();
-    const second = new TelemetryAccessory(restored, api, 38, 600_000, true);
+    const second = new TelemetryAccessory(restored, api, 38, 600_000, true, undefined, options);
     second.update({ active_power: 3.9, temperature: 42 }, Date.now());
     assert.equal(restored.displayName, 'My inverter');
     assert.deepEqual(restored.services.map((s) => s.getServiceId()), ids);

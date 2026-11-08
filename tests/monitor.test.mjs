@@ -94,7 +94,7 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
     const api = new Api();
     let now = 1_700_000_000_000;
     const accessory = new api.platformAccessory('Test Huawei', api.hap.uuid.generate('telemetry-test'));
-    const wrapper = new TelemetryAccessory(accessory, api, 38, 600_000, true, () => now);
+    const wrapper = new TelemetryAccessory(accessory, api, 38, 600_000, true, () => now, { powerMeters: true, gridPowerDirection: 'unconfigured', advancedTelemetry: true });
     wrapper.update({ active_power: 4.5, temperature: 42.1, pv1_u: null, strange_vendor_field: 7 }, now);
     const power = custom(accessory, wrapper.metricUuid('active_power'));
     assert.equal(await power.handleGetRequest(), 4.5);
@@ -126,14 +126,14 @@ for (const [version, Api] of [['2.5.0', HomebridgeAPI], ['1.11.4', v1Api.Homebri
     const api = new Api();
     const accessory = new api.platformAccessory('Cache Huawei', api.hap.uuid.generate('cache-test'));
     api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-    const first = new TelemetryAccessory(accessory, api, 47, 600_000, false);
+    const first = new TelemetryAccessory(accessory, api, 47, 600_000, false, undefined, { powerMeters: true, gridPowerDirection: 'unconfigured', advancedTelemetry: true });
     first.update({ active_power: -1234, active_cap: 12.4 }, Date.now());
     const powerUuid = first.metricUuid('active_power');
     const originalService = accessory.services.find((service) => service.characteristics.some((c) => c.UUID === powerUuid));
     const originalServiceId = originalService.getServiceId();
     const restored = api.platformAccessory.deserialize(api.platformAccessory.serialize(accessory));
     first.close();
-    const second = new TelemetryAccessory(restored, api, 47, 600_000, false);
+    const second = new TelemetryAccessory(restored, api, 47, 600_000, false, undefined, { powerMeters: true, gridPowerDirection: 'unconfigured', advancedTelemetry: true });
     await assert.rejects(custom(restored, powerUuid).handleGetRequest());
     second.update({ active_power: -2234, active_cap: 12.5, a_new_field: 7 }, Date.now());
     assert.equal(restored.services.find((service) => service.characteristics.some((c) => c.UUID === powerUuid)).getServiceId(), originalServiceId);
@@ -184,7 +184,7 @@ test('a failed meter source does not replace its readings with zero or break the
   const client = new DemoApi();
   const original = client.deviceKpis.bind(client);
   client.deviceKpis = (type, ids) => fail && type === 47 ? Promise.reject(new ApiError('permission', 401)) : original(type, ids);
-  const h = harness(HomebridgeAPI, {}, { client });
+  const h = harness(HomebridgeAPI, { advancedTelemetry: true }, { client });
   await h.platform.pollOnce();
   fail = true;
   await h.platform.pollOnce();
@@ -205,7 +205,7 @@ test('active alarms are counted by severity and failure never reports a healthy 
     { stationCode: 'DEMO', serial: 'DEMO-INVERTER', name: 'Alarm testowy', id: 2064, severity: 2, raisedAt: 1_700_000_000_000, cause: 'Przyczyna', suggestion: 'Zalecenie' }
   ]);
   let now = 1_700_000_000_000;
-  const h = harness(HomebridgeAPI, {}, { client, now: () => now });
+  const h = harness(HomebridgeAPI, { advancedTelemetry: true }, { client, now: () => now });
   await h.platform.pollOnce();
   const alarmAccessory = h.registered.find((a) => a.context.kind === 'alarms');
   const count = alarmAccessory.services.flatMap((s) => s.characteristics).find((c) => c.displayName === 'Active alarms');
@@ -223,7 +223,7 @@ test('active alarms are counted by severity and failure never reports a healthy 
 test('expiry actively marks HomeKit characteristics faulty without another poll', async () => {
   const api = new HomebridgeAPI();
   const accessory = new api.platformAccessory('Expiry Huawei', api.hap.uuid.generate('expiry-test'));
-  const wrapper = new TelemetryAccessory(accessory, api, 47, 10, false);
+  const wrapper = new TelemetryAccessory(accessory, api, 47, 10, false, undefined, { powerMeters: true, gridPowerDirection: 'unconfigured', advancedTelemetry: true });
   wrapper.update({ active_power: 20 }, Date.now());
   await new Promise((resolve) => setTimeout(resolve, 30));
   await assert.rejects(custom(accessory, wrapper.metricUuid('active_power')).handleGetRequest());
@@ -255,7 +255,7 @@ test('overlapping cycles and shutdown during discovery do not publish late data'
 test('missing device KPI is unavailable and disabled alarms/status sensors are not created', async () => {
   const client = new DemoApi();
   client.deviceKpis = () => Promise.resolve([]);
-  const h = harness(HomebridgeAPI, { alarms: false, statusSensors: false }, { client });
+  const h = harness(HomebridgeAPI, { alarms: false, statusSensors: false, advancedTelemetry: true }, { client });
   await h.platform.pollOnce();
   assert.equal(h.registered.length, 3);
   assert.ok(h.registered.every((a) => !a.getService(h.api.hap.Service.ContactSensor)));
